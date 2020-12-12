@@ -1,0 +1,4 @@
+bgzip
+
+# pypy
+libatlas-base-dev libblas3 liblapack3 liblapack-dev libblas-dev gfortran

@@ -11,7 +11,7 @@ from   flexx import flx, ui
 
 import reader
 
-DEBUG       = True
+DEBUG       = False
 
 
 
