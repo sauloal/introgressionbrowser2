@@ -876,8 +876,8 @@ class Chromosome():
     def matrix_bin_square(self, binNum: int) -> np.ndarray:
         matrix_bin = self.matrix_bin(binNum)
         mat        = triangleToMatrix(matrix_bin)
-        matsum     = mat.sum(axis=0)
-        assert sum(matsum - self.pairwiNp[binNum]) == 0
+        # matsum     = mat.sum(axis=1)
+        # assert sum(matsum - self.pairwiNp[binNum]) == 0, f"matsum {matsum}\nself.pairwiNp[binNum] {self.pairwiNp[binNum]}\nsum(matsum - self.pairwiNp[binNum]) {sum(matsum - self.pairwiNp[binNum])}"
         # np.fill_diagonal(mat, self.pairwiNp[binNum])
         return mat
 
@@ -1643,6 +1643,7 @@ class Genomes():
                                 print(f"        {metrickey:15s}: {metricvalue}")
 
         return projects
+
 
 
 class BGzip():

@@ -4,3 +4,5 @@ scipy
 
 #ui
 flexx
+wheel
+matplotlib
