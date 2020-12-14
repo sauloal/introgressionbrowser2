@@ -15,7 +15,7 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform
 
 
-DEBUG                         = True
+DEBUG                         = False
 DEBUG_MAX_BIN                 = 10
 DEFAULT_BIN_SIZE              = 250_000
 DEFAULT_SAVE_ALIGNMENT        = True
