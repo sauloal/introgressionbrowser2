@@ -15,7 +15,7 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform
 
 
-DEBUG                         = False
+DEBUG                         = True
 DEBUG_MAX_BIN                 = 10
 DEFAULT_BIN_SIZE              = 250_000
 DEFAULT_SAVE_ALIGNMENT        = True
@@ -632,7 +632,7 @@ class Chromosome():
 
         self.bin_min                      = min(bin_names)
         self.bin_max                      = max(bin_names)
-        self.bin_count                    = len(bin_names)
+        self.bin_count                    = self.bin_max + 1
 
         self.chromosome_snps              = chromosome_snps
         self.sample_count                 = len(sample_names)
@@ -640,9 +640,9 @@ class Chromosome():
         self.chromosome_first_position    = chromosome_first_position
         self.chromosome_last_position     = chromosome_last_position
 
-        self.matrixNp                     = np.zeros((self.bin_max, self.matrix_size ), self.type_matrix_counter  )
-        self.pairwiNp                     = np.zeros((self.bin_max, self.sample_count), self.type_pairwise_counter)
-        self.binsnpNp                     = np.zeros( self.bin_max,                     self.type_pairwise_counter)
+        self.matrixNp                     = np.zeros((self.bin_count, self.matrix_size ), self.type_matrix_counter  )
+        self.pairwiNp                     = np.zeros((self.bin_count, self.sample_count), self.type_pairwise_counter)
+        self.binsnpNp                     = np.zeros( self.bin_count,                     self.type_pairwise_counter)
 
         self.bin_snps_min                 = min([v for v in bin_snps.values()])
         self.bin_snps_max                 = max([v for v in bin_snps.values()])
@@ -650,13 +650,13 @@ class Chromosome():
         self.alignmentNp                  = None
         self.positionNp                   = None
         if bin_alignment:
-            self.alignmentNp              = np.zeros((self.bin_max, self.sample_count), np.unicode_)
-            self.positionNp               = np.zeros((self.bin_max, self.bin_snps_max), self.type_positions)
+            self.alignmentNp              = np.zeros((self.bin_count, self.sample_count), np.unicode_)
+            self.positionNp               = np.zeros((self.bin_count, self.bin_snps_max), self.type_positions)
         else:
             self.alignmentNp              = np.zeros(0, np.unicode_        )
             self.positionNp               = np.zeros(0, self.type_positions)
 
-        for binNum in range(self.bin_max):
+        for binNum in range(self.bin_count):
             # print("  binNum", binNum)
             chromosome_matrix_bin  = chromosome_matrix .get(binNum, np.zeros(self.matrix_size , self.type_matrix_counter  ))
             bin_pairwise_count_bin = bin_pairwise_count.get(binNum, np.zeros(self.sample_count, self.type_pairwise_counter))
@@ -768,8 +768,8 @@ class Chromosome():
         self.bin_max                       = info_dict["bin_max"]
         self.bin_snps_min                  = info_dict["bin_snps_min"]
         self.bin_snps_max                  = info_dict["bin_snps_max"]
-        assert self.bin_max == self.matrixNp.shape[0]
-        assert self.bin_max == self.pairwiNp.shape[0]
+        assert self.bin_count == self.matrixNp.shape[0]
+        assert self.bin_count == self.pairwiNp.shape[0]
 
         bin_width                          = info_dict["bin_width"]
         assert bin_width == self.bin_width
@@ -840,7 +840,7 @@ class Chromosome():
         print(f"chromosome {self.chromosome_name} - calculating distance {metric}")
         dist = np.zeros((self.matrixNp.shape[0], self.matrixNp.shape[1]), dtype=self.type_matrix_distance)
 
-        for binNum in range(self.bin_max):
+        for binNum in range(self.bin_count):
             # print(f"chromosome {self.chromosome_name} - calculating distance {metric} - bin {binNum}")
             dist[binNum,:] = matrixDistance(self.matrixNp[binNum,:], metric=metric, dtype=self.type_matrix_distance)
         
@@ -857,9 +857,9 @@ class Chromosome():
         if metric is None:
             metric == self.metric
 
-        data = np.zeros((self.bin_max, self.sample_count), dtype=self.matrixNp.dtype)
+        data = np.zeros((self.bin_count, self.sample_count), dtype=self.matrixNp.dtype)
         
-        for binNum in range(self.bin_max):
+        for binNum in range(self.bin_count):
             if metric == self.metric:
                 data[binNum,:] = self.matrix_bin_sample(binNum, sample_name)
 
@@ -869,7 +869,7 @@ class Chromosome():
         return data
 
     def matrix_bin(self, binNum: int) -> np.ndarray:
-        assert binNum <  self.bin_max
+        assert binNum <= self.bin_max
         assert binNum >= 0
         return self.matrix[binNum,:]
 
