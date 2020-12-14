@@ -303,6 +303,10 @@ class Graph(flx.CanvasWidget):
         colorrange      = coord_data["colorrange"     ]
         min_val         = coord_data["min_val"        ]
         max_val         = coord_data["max_val"        ]
+        snps            = coord_data["snps"           ]
+        first_position  = coord_data["first_position" ]
+        last_position   = coord_data["last_position"  ]
+
         num_bins        = img_shape[0]
         num_samples     = img_shape[1]
         # rgba       = img_shape[2]
@@ -320,27 +324,30 @@ class Graph(flx.CanvasWidget):
         ctx                    = self.ctx
         
         min_display_font       = 10
-        font_size              = 10
+        font_size              = 12
         font_height            = font_size
         font_width             = font_size * 0.48 #https://www.lifewire.com/aspect-ratio-table-common-fonts-3467385
-        header_lines           = 4
+        header_lines           = 6 + 1
 
         print(f"Graph :: coord_data :: font_size              {font_size}")
         print(f"Graph :: coord_data :: font_height            {font_height}")
         print(f"Graph :: coord_data :: font_width             {font_width}")
 
-        max_bin_name_length    = max([len(b) for  b in binnames]) + header_lines + 3
+        header_height          = header_lines * font_height + font_height
+        max_bin_name_length    = max([len(b) for  b in binnames])
         max_bin_name_size      = max_bin_name_length    * font_width
-        max_bin_name_offset    = max_bin_name_length    * font_width * 1.25 + font_width
+        max_bin_name_offset    = max_bin_name_size            + font_width + header_height
+        max_bin_name_offset_h  = max_bin_name_size      * 1.2 + font_width + header_height
         print(f"Graph :: coord_data :: max_bin_name_length    {max_bin_name_length}")
         print(f"Graph :: coord_data :: max_bin_name_size      {max_bin_name_size}")
+        print(f"Graph :: coord_data :: max_bin_name_offset    {max_bin_name_offset}")
 
         max_sample_name_length = max([len(x) for x in samplenames])
         max_sample_name_size   = max_sample_name_length * font_width
         print(f"Graph :: coord_data :: max_sample_name_length {max_sample_name_length}")
         print(f"Graph :: coord_data :: max_sample_name_size   {max_sample_name_size}")
 
-        start_y                = (max_bin_name_size    * (font_size >= min_display_font)) + 4*font_width
+        start_y                = (max_bin_name_offset  * (font_size >= min_display_font)) #+ 4*font_width
         start_x                = (max_sample_name_size * (font_size >= min_display_font)) + 4*font_width
         print(f"Graph :: coord_data :: start_y                {start_y}")
         print(f"Graph :: coord_data :: start_x                {start_x}")
@@ -383,7 +390,7 @@ class Graph(flx.CanvasWidget):
             ctx.strokeStyle = 'black'
             ctx.fillStyle   = 'black'
             ctx.save()
-            ctx.translate(start_x + font_height, max_bin_name_offset)
+            ctx.translate(start_x + font_height, max_bin_name_offset_h)
             ctx.rotate(-0.5*math.pi)
             for bin_pos, bin_name in enumerate(binnames):
                 text_x = 0
@@ -407,27 +414,37 @@ class Graph(flx.CanvasWidget):
             ##   header_lines
             ctx.save()
 
-            bin_width_s   = "{:12,d}".format(bin_width)
-            title_max_len = max([len(v) for v in [chromosome_name, vcf_name, bin_width_s, metric, reference_name]])
-            title_fmt     = "{:"+str(title_max_len)+"}"
+            title_max_len    = max([len(v) for v in [chromosome_name, vcf_name, bin_width, metric, reference_name, first_position, last_position, snps]])
+            title_fmt        = "{:"+str(title_max_len)+"}"
 
             text_x  = font_width
             text_y  = 1 * font_height
-            ctx.fillText(("VCF       : "+title_fmt).format(vcf_name       ), text_x, text_y)
+            ctx.fillText(("VCF           : "+title_fmt).format(vcf_name         ), text_x, text_y)
 
             text_x  = font_width
             text_y  = 2 * font_height
-            ctx.fillText(("Chromosome: "+title_fmt).format(chromosome_name), text_x, text_y)
-            text_x += (title_max_len + 12) * font_width
+            ctx.fillText(("Chromosome    : "+title_fmt).format(chromosome_name  ), text_x, text_y)
+            text_x += (title_max_len + 16) * font_width
             text_y  = 2 * font_height
-            ctx.fillText(("Bin Width : "+title_fmt).format(bin_width_s    ), text_x, text_y)
+            ctx.fillText(("Bin Width     : "+title_fmt).format(bin_width        ), text_x, text_y)
 
             text_x  = font_width
             text_y  = 3 * font_height
-            ctx.fillText(("Metric    : "+title_fmt).format(metric         ), text_x, text_y)
-            text_x += (title_max_len + 12) * font_width
+            ctx.fillText(("Metric        : "+title_fmt).format(metric           ), text_x, text_y)
+            text_x += (title_max_len + 16) * font_width
             text_y  = 3 * font_height
-            ctx.fillText(("Reference : "+title_fmt).format(reference_name ), text_x, text_y)
+            ctx.fillText(("Reference     : "+title_fmt).format(reference_name   ), text_x, text_y)
+
+            text_x  = font_width
+            text_y  = 4 * font_height
+            ctx.fillText(("First Position: "+title_fmt).format(first_position   ), text_x, text_y)
+            text_x += (title_max_len + 16) * font_width
+            text_y  = 4 * font_height
+            ctx.fillText(("Last Position : "+title_fmt).format(last_position    ), text_x, text_y)
+
+            text_x  = font_width
+            text_y  = 5 * font_height
+            ctx.fillText(("# SNPs        : "+title_fmt).format(snps             ), text_x, text_y)
 
             ctx.restore()
 
@@ -435,7 +452,7 @@ class Graph(flx.CanvasWidget):
             ## Color list
             ##
             blocksize  = 1
-            block_y    = font_height * 4
+            block_y    = font_height * 6
             block_x_ts = font_width
             block_x_bs = block_x_ts + 6*font_width
             block_x_te = block_x_bs + (len(colorrange) * blocksize) + (1*font_width)
@@ -831,12 +848,15 @@ class ChromosomeController(flx.PyWidget):
                 "binnames"       : bin_names,
                 "chromosome_name": self.chromosome_name,
                 "vcf_name"       : os.path.basename(self.vcf_name),
-                "bin_width"      : self.bin_width,
+                "bin_width"      : f"{self.bin_width:12,d}",
                 "metric"         : self.metric,
                 "sample_name"    : self.sample_name,
                 "colorrange"     : acolord,
                 "min_val"        : matrix_min,
-                "max_val"        : matrix_max
+                "max_val"        : matrix_max,
+                "snps"           : f"{self.chromosome_snps:12,d}",
+                "first_position" : f"{self.chromosome_first_position:12,d}",
+                "last_position"  : f"{self.chromosome_last_position:12,d}"
             })
 
     def format_range(self):
