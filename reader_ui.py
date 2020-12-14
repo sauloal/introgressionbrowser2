@@ -300,9 +300,11 @@ class Graph(flx.CanvasWidget):
         bin_width       = coord_data["bin_width"      ]
         metric          = coord_data["metric"         ]
         reference_name  = coord_data["sample_name"    ]
-
-        num_bins    = img_shape[0]
-        num_samples = img_shape[1]
+        colorrange      = coord_data["colorrange"     ]
+        min_val         = coord_data["min_val"        ]
+        max_val         = coord_data["max_val"        ]
+        num_bins        = img_shape[0]
+        num_samples     = img_shape[1]
         # rgba       = img_shape[2]
 
         print(f"Graph :: coord_data :: matrix_min             {matrix_min}")
@@ -321,12 +323,13 @@ class Graph(flx.CanvasWidget):
         font_size              = 10
         font_height            = font_size
         font_width             = font_size * 0.48 #https://www.lifewire.com/aspect-ratio-table-common-fonts-3467385
+        header_lines           = 4
 
         print(f"Graph :: coord_data :: font_size              {font_size}")
         print(f"Graph :: coord_data :: font_height            {font_height}")
         print(f"Graph :: coord_data :: font_width             {font_width}")
 
-        max_bin_name_length    = max([len(b) for  b in binnames]) + 5
+        max_bin_name_length    = max([len(b) for  b in binnames]) + header_lines + 3
         max_bin_name_size      = max_bin_name_length    * font_width
         max_bin_name_offset    = max_bin_name_length    * font_width * 1.25 + font_width
         print(f"Graph :: coord_data :: max_bin_name_length    {max_bin_name_length}")
@@ -398,6 +401,10 @@ class Graph(flx.CanvasWidget):
                 text_y = (sample_pos * font_height) + start_y + font_height
                 ctx.fillText(sample_name, text_x, text_y)
 
+
+            ##
+            ## Header
+            ##   header_lines
             ctx.save()
 
             bin_width_s   = "{:12,d}".format(bin_width)
@@ -423,6 +430,35 @@ class Graph(flx.CanvasWidget):
             ctx.fillText(("Reference : "+title_fmt).format(reference_name ), text_x, text_y)
 
             ctx.restore()
+
+            ##
+            ## Color list
+            ##
+            blocksize  = 1
+            block_y    = font_height * 4
+            block_x_ts = font_width
+            block_x_bs = block_x_ts + 6*font_width
+            block_x_te = block_x_bs + (len(colorrange) * blocksize) + (1*font_width)
+            ctx.save()
+            ctx.fillText("{:3.2f}".format(min_val), block_x_ts, block_y)
+            ctx.fillText("{:3.2f}".format(max_val), block_x_te, block_y)
+            for color_num, color_pos in enumerate(colorrange):
+                color           = colorlist[color_pos]
+                ctx.strokeStyle = color
+                ctx.fillStyle   = color
+                ctx.beginPath()
+                ctx.fillRect(
+                    block_x_bs  + (color_num * blocksize),
+                    block_y - font_height*.7,
+                    blocksize,
+                    font_height
+                )
+                ctx.stroke()
+            ctx.restore()
+
+        # colorrange      = coord_data["colorrange"     ]
+        # min_val         = coord_data["min_val"        ]
+        # max_val         = coord_data["max_val"        ]
 
 
         if True:
@@ -708,15 +744,27 @@ class ChromosomeController(flx.PyWidget):
         self.display()
 
     def update_color(self, min_val=None, max_val=None, display=True):
+        min_val = self.min_val if min_val is None else min_val
+        max_val = self.max_val if max_val is None else max_val
+        val_ran = (max_val-min_val)/self.num_vals
         _, _, self.cmap = get_color_maps(
             self.color_name,
-            min_val = self.min_val if min_val is None else min_val,
-            max_val = self.max_val if max_val is None else max_val,
+            min_val = min_val,
+            max_val = max_val,
             levels  = self.num_vals,
             bad     = self.color_bad,
             over    = self.color_over,
             under   = self.color_under
         )
+        arange = np.arange(min_val, max_val, val_ran)
+        acolor = self.cmap(arange)
+        # print("min_val ", min_val)
+        # print("max_val ", max_val)
+        # print("val_ran ", val_ran)
+        # print("num_vals", self.num_vals)
+        # print("arange  ", arange)
+        # print("acolor  ", acolor)
+        return acolor
 
     def display(self):
         print(f"ChromosomeController.display :: _is_loaded {self._is_loaded} sample_name {self.sample_name} color_name {self.color_name}")
@@ -737,17 +785,19 @@ class ChromosomeController(flx.PyWidget):
             self.set_min_val(matrix_min)
             self.set_max_val(matrix_max)
 
-            self.update_color(min_val=matrix_min, max_val=matrix_max, display=False)
-            img = self.cmap(matrix)
+            acolor = self.update_color(min_val=matrix_min, max_val=matrix_max, display=False)
+            img    = self.cmap(matrix)
+
             # print(f"ChromosomeController.display :: img = {img}")
             print(f"ChromosomeController.display :: img shape  = {img.shape}")
             print(f"ChromosomeController.display :: img type   = {type(img)}")
             print(f"ChromosomeController.display :: bin_count  = {self.bin_count}")
             # print(f"ChromosomeController.display :: bin_count  = {self.bin_n}")
             imgd      = img.tolist()
+            acolord   = acolor.tolist()
             colorlist = {}
-            for col_num in range(len(imgd)):
-                col = imgd[col_num]
+
+            def col_to_color(col):
                 for row_num in range(len(col)):
                     cell     = col[row_num]
                     rgba     = [int(v*255) for v in cell]
@@ -758,6 +808,14 @@ class ChromosomeController(flx.PyWidget):
                         colorpos = len(colorlist)
                         colorlist[hexa] = colorpos
                     col[row_num] = colorpos
+
+            for col_num in range(len(imgd)):
+                col = imgd[col_num]
+                col_to_color(col)
+            
+            col_to_color(acolord)
+            # print("acolord", acolord)
+
             colorlist = sorted(list(colorlist.keys()), key=lambda x: colorlist[x])
             # print(f"ChromosomeController.display :: imgd = {imgd}")
             # bin_names = [f"{b+1:7,d} - {b*self.bin_width:12,d}-{(b+1)*self.bin_width:12,d}" for b in range(self.bin_count)]
@@ -775,11 +833,14 @@ class ChromosomeController(flx.PyWidget):
                 "vcf_name"       : os.path.basename(self.vcf_name),
                 "bin_width"      : self.bin_width,
                 "metric"         : self.metric,
-                "sample_name"    : self.sample_name
+                "sample_name"    : self.sample_name,
+                "colorrange"     : acolord,
+                "min_val"        : matrix_min,
+                "max_val"        : matrix_max
             })
 
     def format_range(self):
-        def human_format(num, suffixes=[['',0], ['K',0], ['M',2], ['G',1], ['T',1], ['P',1]]):
+        def human_format(num, suffixes=[['bp',0], ['Kbp',0], ['Mbp',2], ['Gbp',3], ['Tbp',4], ['Pbp',5]]):
             # m = sum([abs(num/1000.0**x) >= 1 for x in range(1, len(suffixes))])
             m = int(math.log10(num) // 3) if num > 0 else 0
             return f'{num/1000.0**m:.{suffixes[m][1]}f}{suffixes[m][0]}'
