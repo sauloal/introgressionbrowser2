@@ -123,6 +123,19 @@ class BrowserUI(flx.PyWidget):
         setHidden(self.combo_bin_widths      , True)
         setHidden(self.combo_metrics         , True)
 
+    # def _render_dom(self):
+    #     # Use this to determine the content. This method may return a
+    #     # string, a list of virtual nodes, or a single virtual node
+    #     # (which must match the type produced in _create_dom()).
+    #     return [flx.create_element('span', {},
+    #                 'Hello', flx.create_element('b', {}, self.name), '! '),
+    #             flx.create_element('span', {},
+    #                 'I happen to know that your age is %i.' % self.age),
+    #             flx.create_element('br'),
+    #             flx.create_element('button', {'onclick': self.increase_age},
+    #                 'Next year ...')
+    #             ]
+
     @flx.action
     def set_genome_name(self, genome_name: str):
         if self._is_loaded and genome_name != "":
@@ -285,7 +298,7 @@ class Graph(flx.CanvasWidget):
 
     @flx.action
     def set_points(self, coord_data):
-        print(f"Graph :: coord_data")
+        print(f"Graph.set_points :: coord_data")
 
         matrix_min      = coord_data["min"            ]
         matrix_max      = coord_data["max"            ]
@@ -306,20 +319,29 @@ class Graph(flx.CanvasWidget):
         snps            = coord_data["snps"           ]
         first_position  = coord_data["first_position" ]
         last_position   = coord_data["last_position"  ]
+        bin_colorrange  = coord_data["bin_colorrange" ]
+        bin_snps_color  = coord_data["bin_snps_color" ]
+        bin_snps        = coord_data["bin_snps"       ]
+        bin_snps_min    = coord_data["bin_snps_min"   ]
+        bin_snps_max    = coord_data["bin_snps_max"   ]
 
         num_bins        = img_shape[0]
         num_samples     = img_shape[1]
         # rgba       = img_shape[2]
 
-        print(f"Graph :: coord_data :: matrix_min             {matrix_min}")
-        print(f"Graph :: coord_data :: matrix_max             {matrix_max}")
-        print(f"Graph :: coord_data :: img_shape              {img_shape}")
-        print(f"Graph :: coord_data :: num_bins               {num_bins}")
-        print(f"Graph :: coord_data :: num_samples            {num_samples}")
-        print(f"Graph :: coord_data :: binwidth               {binwidth}")
-        print(f"Graph :: coord_data :: binnames               {len(binnames)}")
-        # print(f"Graph :: coord_data :: rgba       {rgba}")
-        # print(f"Graph :: coord_data :: imgd       {imgd}")
+        print(f"Graph.set_points :: coord_data :: matrix_min             {matrix_min}")
+        print(f"Graph.set_points :: coord_data :: matrix_max             {matrix_max}")
+        print(f"Graph.set_points :: coord_data :: img_shape              {img_shape}")
+        print(f"Graph.set_points :: coord_data :: num_bins               {num_bins}")
+        print(f"Graph.set_points :: coord_data :: num_samples            {num_samples}")
+        print(f"Graph.set_points :: coord_data :: binwidth               {binwidth}")
+        print(f"Graph.set_points :: coord_data :: binnames               {len(binnames)}")
+        # print(f"Graph.set_points :: coord_data :: rgba       {rgba}")
+        # print(f"Graph.set_points :: coord_data :: imgd       {imgd}")
+
+
+        print(f"Graph.set_points :: clearing")
+        self.reset()
 
         ctx                    = self.ctx
         
@@ -329,46 +351,42 @@ class Graph(flx.CanvasWidget):
         font_width             = font_size * 0.48 #https://www.lifewire.com/aspect-ratio-table-common-fonts-3467385
         header_lines           = 6 + 1
 
-        print(f"Graph :: coord_data :: font_size              {font_size}")
-        print(f"Graph :: coord_data :: font_height            {font_height}")
-        print(f"Graph :: coord_data :: font_width             {font_width}")
+        print(f"Graph.set_points :: coord_data :: font_size              {font_size}")
+        print(f"Graph.set_points :: coord_data :: font_height            {font_height}")
+        print(f"Graph.set_points :: coord_data :: font_width             {font_width}")
 
         header_height          = header_lines * font_height + font_height
         max_bin_name_length    = max([len(b) for  b in binnames])
         max_bin_name_size      = max_bin_name_length    * font_width
         max_bin_name_offset    = max_bin_name_size            + font_width + header_height
         max_bin_name_offset_h  = max_bin_name_size      * 1.2 + font_width + header_height
-        print(f"Graph :: coord_data :: max_bin_name_length    {max_bin_name_length}")
-        print(f"Graph :: coord_data :: max_bin_name_size      {max_bin_name_size}")
-        print(f"Graph :: coord_data :: max_bin_name_offset    {max_bin_name_offset}")
+        print(f"Graph.set_points :: coord_data :: max_bin_name_length    {max_bin_name_length}")
+        print(f"Graph.set_points :: coord_data :: max_bin_name_size      {max_bin_name_size}")
+        print(f"Graph.set_points :: coord_data :: max_bin_name_offset    {max_bin_name_offset}")
 
         max_sample_name_length = max([len(x) for x in samplenames])
         max_sample_name_size   = max_sample_name_length * font_width
-        print(f"Graph :: coord_data :: max_sample_name_length {max_sample_name_length}")
-        print(f"Graph :: coord_data :: max_sample_name_size   {max_sample_name_size}")
+        print(f"Graph.set_points :: coord_data :: max_sample_name_length {max_sample_name_length}")
+        print(f"Graph.set_points :: coord_data :: max_sample_name_size   {max_sample_name_size}")
 
-        start_y                = (max_bin_name_offset  * (font_size >= min_display_font)) #+ 4*font_width
+        start_y                = (max_bin_name_offset  * (font_size >= min_display_font)) +   font_width
         start_x                = (max_sample_name_size * (font_size >= min_display_font)) + 4*font_width
-        print(f"Graph :: coord_data :: start_y                {start_y}")
-        print(f"Graph :: coord_data :: start_x                {start_x}")
+        print(f"Graph.set_points :: coord_data :: start_y                {start_y}")
+        print(f"Graph.set_points :: coord_data :: start_x                {start_x}")
 
         height_eff             = start_y + num_samples * font_height + font_height
         width_eff              = start_x + num_bins    * font_height + font_height
-        print(f"Graph :: coord_data :: height_eff             {height_eff}")
-        print(f"Graph :: coord_data :: width_eff              {width_eff}")
+        print(f"Graph.set_points :: coord_data :: height_eff             {height_eff}")
+        print(f"Graph.set_points :: coord_data :: width_eff              {width_eff}")
 
-        # print(f"Graph :: resize :: width {width_eff} height {height_eff}")
+        print(f"Graph.set_points :: resize :: width {width_eff} height {height_eff}")
         self.resize(width_eff, height_eff)
 
-        print(f"Graph :: clearing")
-        ctx.clearRect(
-            0,
-            0,
-            width_eff,
-            height_eff
-        )
-
+        ##
+        ## Write Border
+        ##
         if True:
+            print(f"Graph.set_points :: Writing Border")
             ctx.strokeStyle = 'black'
             # ctx.fillStyle   = "rgba(255, 255, 255, 0.0)"
             ctx.lineWidth   = 1
@@ -382,9 +400,11 @@ class Graph(flx.CanvasWidget):
             ctx.stroke()
             ctx.lineWidth   = 0
 
-
+        ##
+        ## Write title
+        ##
         if font_size >= min_display_font:
-            print(f"Graph :: writing text")
+            print(f"Graph.set_points :: Writing Title")
 
             ctx.font        = f"{font_size}px Courier New"
             ctx.strokeStyle = 'black'
@@ -408,81 +428,88 @@ class Graph(flx.CanvasWidget):
                 text_y = (sample_pos * font_height) + start_y + font_height
                 ctx.fillText(sample_name, text_x, text_y)
 
-
             ##
             ## Header
             ##   header_lines
-            ctx.save()
+            if True:
+                print(f"Graph.set_points :: Writing Header")
+                ctx.save()
 
-            title_max_len    = max([len(v) for v in [chromosome_name, vcf_name, bin_width, metric, reference_name, first_position, last_position, snps]])
-            title_fmt        = "{:"+str(title_max_len)+"}"
+                title_max_len    = max([len(v) for v in [chromosome_name, vcf_name, bin_width, metric, reference_name, first_position, last_position, snps]])
+                title_fmt        = "{:"+str(title_max_len)+"}"
 
-            text_x  = font_width
-            text_y  = 1 * font_height
-            ctx.fillText(("VCF           : "+title_fmt).format(vcf_name         ), text_x, text_y)
+                text_x  = font_width
+                text_y  = 1 * font_height
+                ctx.fillText(("VCF           : "+title_fmt).format(vcf_name         ), text_x, text_y)
 
-            text_x  = font_width
-            text_y  = 2 * font_height
-            ctx.fillText(("Chromosome    : "+title_fmt).format(chromosome_name  ), text_x, text_y)
-            text_x += (title_max_len + 16) * font_width
-            text_y  = 2 * font_height
-            ctx.fillText(("Bin Width     : "+title_fmt).format(bin_width        ), text_x, text_y)
+                text_x  = font_width
+                text_y  = 2 * font_height
+                ctx.fillText(("Chromosome    : "+title_fmt).format(chromosome_name  ), text_x, text_y)
+                text_x += (title_max_len + 16) * font_width
+                text_y  = 2 * font_height
+                ctx.fillText(("Bin Width     : "+title_fmt).format(bin_width        ), text_x, text_y)
 
-            text_x  = font_width
-            text_y  = 3 * font_height
-            ctx.fillText(("Metric        : "+title_fmt).format(metric           ), text_x, text_y)
-            text_x += (title_max_len + 16) * font_width
-            text_y  = 3 * font_height
-            ctx.fillText(("Reference     : "+title_fmt).format(reference_name   ), text_x, text_y)
+                text_x  = font_width
+                text_y  = 3 * font_height
+                ctx.fillText(("Metric        : "+title_fmt).format(metric           ), text_x, text_y)
+                text_x += (title_max_len + 16) * font_width
+                text_y  = 3 * font_height
+                ctx.fillText(("Reference     : "+title_fmt).format(reference_name   ), text_x, text_y)
 
-            text_x  = font_width
-            text_y  = 4 * font_height
-            ctx.fillText(("First Position: "+title_fmt).format(first_position   ), text_x, text_y)
-            text_x += (title_max_len + 16) * font_width
-            text_y  = 4 * font_height
-            ctx.fillText(("Last Position : "+title_fmt).format(last_position    ), text_x, text_y)
+                text_x  = font_width
+                text_y  = 4 * font_height
+                ctx.fillText(("First Position: "+title_fmt).format(first_position   ), text_x, text_y)
+                text_x += (title_max_len + 16) * font_width
+                text_y  = 4 * font_height
+                ctx.fillText(("Last Position : "+title_fmt).format(last_position    ), text_x, text_y)
 
-            text_x  = font_width
-            text_y  = 5 * font_height
-            ctx.fillText(("# SNPs        : "+title_fmt).format(snps             ), text_x, text_y)
+                text_x  = font_width
+                text_y  = 5 * font_height
+                ctx.fillText(("# SNPs        : "+title_fmt).format(snps             ), text_x, text_y)
 
-            ctx.restore()
+                ctx.restore()
 
             ##
             ## Color list
             ##
-            blocksize  = 1
-            block_y    = font_height * 6
-            block_x_ts = font_width
-            block_x_bs = block_x_ts + 6*font_width
-            block_x_te = block_x_bs + (len(colorrange) * blocksize) + (1*font_width)
-            ctx.save()
-            ctx.fillText("{:3.2f}".format(min_val), block_x_ts, block_y)
-            ctx.fillText("{:3.2f}".format(max_val), block_x_te, block_y)
-            for color_num, color_pos in enumerate(colorrange):
-                color           = colorlist[color_pos]
-                ctx.strokeStyle = color
-                ctx.fillStyle   = color
-                ctx.beginPath()
-                ctx.fillRect(
-                    block_x_bs  + (color_num * blocksize),
-                    block_y - font_height*.7,
-                    blocksize,
-                    font_height
-                )
-                ctx.stroke()
-            ctx.restore()
+            if True:
+                print(f"Graph.set_points :: Writing Color List")
+                blocksize  = 1
+                block_y    = font_height * 6
+                block_x_ts = font_width
+                block_x_bs = block_x_ts + 6*font_width
+                block_x_te = block_x_bs + (len(colorrange) * blocksize) + (1*font_width)
+                ctx.save()
+                ctx.fillText("{:3.2f}".format(min_val), block_x_ts, block_y)
+                ctx.fillText("{:3.2f}".format(max_val), block_x_te, block_y)
+                for color_num, color_pos in enumerate(colorrange):
+                    color           = colorlist[color_pos]
+                    ctx.strokeStyle = color
+                    ctx.fillStyle   = color
+                    ctx.beginPath()
+                    ctx.fillRect(
+                        block_x_bs  + (color_num * blocksize),
+                        block_y - font_height*.7,
+                        blocksize,
+                        font_height
+                    )
+                    ctx.stroke()
+                ctx.restore()
 
-        # colorrange      = coord_data["colorrange"     ]
-        # min_val         = coord_data["min_val"        ]
-        # max_val         = coord_data["max_val"        ]
+        # bin_colorrange  = coord_data["bin_colorrange" ]
+        # bin_snps_color  = coord_data["bin_snps_color" ]
+        # bin_snps        = coord_data["bin_snps"       ]
+        # bin_snps_min    = coord_data["bin_snps_min"   ]
+        # bin_snps_max    = coord_data["bin_snps_max"   ]
 
-
+        ##
+        ## Create Graph
+        ##
         if True:
-            print(f"Graph :: creating graph")
-            print(f"Graph :: setting")
-            print(f"Graph :: setting :: imgd.length {imgd.length}")
-            print(f"Graph :: setting :: imgd[0].length {imgd[0].length}")
+            print(f"Graph.set_points :: creating graph")
+            print(f"Graph.set_points :: setting")
+            print(f"Graph.set_points :: setting :: imgd.length {imgd.length}")
+            print(f"Graph.set_points :: setting :: imgd[0].length {imgd[0].length}")
             for x in range(num_bins):
                 col = imgd[x]
                 for y in range(num_samples):
@@ -593,6 +620,20 @@ class Graph(flx.CanvasWidget):
                 )
                 ctx.stroke()
 
+    @flx.action
+    def reset(self, zero=True):
+        print("Graph.reset", zero)
+        if hasattr(self.ctx, 'self.width'):
+            print("Graph.reset :: clearing")
+            self.ctx.clearRect(
+                0,
+                0,
+                self.ctx.width,
+                self.ctx.height
+            )
+        if zero:
+            print("Graph.reset :: zeroing")
+            self.resize(0, 0)
 
 
 class ChromosomeController(flx.PyWidget):
@@ -611,6 +652,7 @@ class ChromosomeController(flx.PyWidget):
 
     bin_snps_min              = flx.IntProp(        -1, settable=True, doc="minimum number of snps in a bin")
     bin_snps_max              = flx.IntProp(        -1, settable=True, doc="maximum number of snps in a bin")
+    bin_snps                  = flx.ListProp(       [], settable=True, doc="number of snps per bin")
 
     chromosome_snps           = flx.IntProp(        -1, settable=True, doc="number of snps in the chromosome")
     chromosome_first_position = flx.IntProp(        -1, settable=True, doc="first chromosome position")
@@ -677,39 +719,50 @@ class ChromosomeController(flx.PyWidget):
         self._is_loaded = True
 
     @flx.action
-    def set_chromosome(self, chromosome: reader.Chromosome):
-        print("ChromosomeController.set_chromosome")
-        self.chromosome = chromosome
+    def reset(self):
+        print("ChromosomeController.reset")
+        self.chromosome = None
+
+        self.set_filename(                 "-")
+    
+        self.set_vcf_name(                 "-")
+        self.set_bin_width(                 -1)
+        self.set_chromosome_order(          -1)
+        self.set_chromosome_name(          "-")
+        self.set_metric(                   "-")
+
+        self.set_matrix_size(               -1)
+        self.set_bin_max(                   -1)
+        self.set_bin_min(                   -1)
+        self.set_bin_count(                 -1)
+
+        self.set_bin_snps_min(              -1)
+        self.set_bin_snps_max(              -1)
+        self.set_bin_snps(                  [])
+
+        self.set_chromosome_snps(           -1)
+        self.set_chromosome_first_position( -1)
+        self.set_chromosome_last_position(  -1)
+
+        self.set_sample_names(              [])
+        self.set_sample_count(              -1)
+        self.set_sample_name(              "-")
+
+        self.combo_sample_names.set_text("Select sample name")
+        self.combo_sample_names.set_options(self.sample_names)
+        self.combo_sample_names.set_selected_index(None)
+        self.graph.reset()
+        print("ChromosomeController.reset :: done")
+
+    @flx.action
+    def update(self):
+        print("ChromosomeController.update")
 
         if self.chromosome is None:
-            self.set_filename(                 "-")
-        
-            self.set_vcf_name(                 "-")
-            self.set_bin_width(                 -1)
-            self.set_chromosome_order(          -1)
-            self.set_chromosome_name(          "-")
-            self.set_metric(                   "-")
-
-            self.set_matrix_size(               -1)
-            self.set_bin_max(                   -1)
-            self.set_bin_min(                   -1)
-            self.set_bin_count(                 -1)
-
-            self.set_bin_snps_min(              -1)
-            self.set_bin_snps_max(              -1)
-
-            self.set_chromosome_snps(           -1)
-            self.set_chromosome_first_position( -1)
-            self.set_chromosome_last_position(  -1)
-
-            self.set_sample_names(              [])
-            self.set_sample_count(              -1)
-            self.set_sample_name(              "-")
-
-            self.combo_sample_names.set_options(self.sample_names)
-            self.combo_sample_names.set_text("Select sample name")
+            print("ChromosomeController.update :: NO CHROMOSOME")
 
         else:
+            print("ChromosomeController.update :: updating")
             self.set_filename(                 self.chromosome.filename)
 
             self.set_vcf_name(                 self.chromosome.vcf_name)
@@ -725,6 +778,7 @@ class ChromosomeController(flx.PyWidget):
 
             self.set_bin_snps_min(             self.chromosome.bin_snps_min)
             self.set_bin_snps_max(             self.chromosome.bin_snps_max)
+            self.set_bin_snps(                 self.chromosome.binsnpNp.tolist())
 
             self.set_chromosome_snps(          self.chromosome.chromosome_snps)
             self.set_chromosome_first_position(self.chromosome.chromosome_first_position)
@@ -734,38 +788,51 @@ class ChromosomeController(flx.PyWidget):
             self.set_sample_count(             self.chromosome.sample_count)
             self.set_sample_name(              "-")
 
-            self.combo_sample_names.set_options(self.sample_names)
             self.combo_sample_names.set_text("Select sample name")
+            self.combo_sample_names.set_options(self.sample_names)
             self.combo_sample_names.set_selected_index(0)
+
+    @flx.action
+    def set_chromosome(self, chromosome: reader.Chromosome):
+        print("ChromosomeController.set_chromosome")
+
+        self.reset()
+
+        self.chromosome = chromosome
+
+        if self.chromosome is not None:
+            self.update()
 
     @flx.reaction
     def reaction_min_val(self):#, ev):
-        self.update_color()
+        self.cmap, _ = self.update_color()
 
     @flx.reaction
     def reaction_max_val(self):#, ev):
-        self.update_color()
+        self.cmap, _ = self.update_color()
 
     @flx.reaction("combo_color_names.selected_key")
-    def reaction_combo_color_names(self, ev):
-        print("ChromosomeController.reaction_combo_color_names")
+    def reaction_combo_color_names(self, *args):
+        print("ChromosomeController.reaction_combo_color_names", self.combo_color_names.selected_key)
         self.set_color_name(self.combo_color_names.selected_key)
 
     @flx.reaction("combo_sample_names.selected_key")
-    def reaction_combo_sample_names(self, ev):
-        print("ChromosomeController.reaction_combo_sample_names")
+    def reaction_combo_sample_names(self, *args):
+        print("ChromosomeController.reaction_combo_sample_names", self.combo_sample_names.selected_key)
         self.set_sample_name(self.combo_sample_names.selected_key)
 
     @flx.reaction
     def reaction_sample_name(self):
+        print("ChromosomeController.reaction_sample_name", self.sample_name)
         self.display()
 
-    def update_color(self, min_val=None, max_val=None, display=True):
-        min_val = self.min_val if min_val is None else min_val
-        max_val = self.max_val if max_val is None else max_val
-        val_ran = (max_val-min_val)/self.num_vals
-        _, _, self.cmap = get_color_maps(
-            self.color_name,
+    def update_color(self, color_name=None, min_val=None, max_val=None):
+        color_name = self.color_name if color_name is None else color_name
+        min_val    = self.min_val    if min_val    is None else min_val
+        max_val    = self.max_val    if max_val    is None else max_val
+        val_ran    = (max_val-min_val)/self.num_vals
+        _, _, cmap = get_color_maps(
+            color_name,
             min_val = min_val,
             max_val = max_val,
             levels  = self.num_vals,
@@ -774,36 +841,59 @@ class ChromosomeController(flx.PyWidget):
             under   = self.color_under
         )
         arange = np.arange(min_val, max_val, val_ran)
-        acolor = self.cmap(arange)
+        acolor = cmap(arange)
         # print("min_val ", min_val)
         # print("max_val ", max_val)
         # print("val_ran ", val_ran)
         # print("num_vals", self.num_vals)
         # print("arange  ", arange)
         # print("acolor  ", acolor)
-        return acolor
+        return cmap, acolor
 
     def display(self):
         print(f"ChromosomeController.display :: _is_loaded {self._is_loaded} sample_name {self.sample_name} color_name {self.color_name}")
-        if (
-            self.chromosome  is not None and
-            self._is_loaded and
-            self.sample_name is not None and self.sample_name != "-" and
-            self.color_name  is not None and self.color_name  != "-"
+        if not (
+            self.chromosome      is not None and
+            self._is_loaded                  and
+            self.chromosome_name is not None and self.chromosome_name != "-" and self.chromosome_name != "" and
+            self.sample_name     is not None and self.sample_name     != "-" and self.sample_name     != "" and
+            self.color_name      is not None and self.color_name      != "-" and self.color_name      != ""
         ):
+            print(f"ChromosomeController.display :: INCOMPLETE")
+        else:
+            print(f"ChromosomeController.display :: displaying")
             matrix     = self.matrix_sample(self.sample_name)
+            # print(f"ChromosomeController.display :: matrix", matrix)
+            # print(f"ChromosomeController.display :: np.nanmin(matrix)", np.nanmin(matrix))
+            # print(f"ChromosomeController.display :: np.nanmax(matrix)", np.nanmax(matrix))
+            matrix     = matrix.astype(np.float)
             matrix[matrix == np.nanmin(matrix)] = None
-            matrix[matrix == np.nanmin(matrix)] = None
+            matrix[matrix == np.nanmax(matrix)] = None
             matrix_min = float(np.nanmin(matrix))
             matrix_max = float(np.nanmax(matrix))
+
+            bin_snps_min = min(self.bin_snps)
+            bin_snps_max = max(self.bin_snps)
+            # bin_snps_pro = [(b-bin_snps_min)/(bin_snps_max-bin_snps_min) for b in self.bin_snps]
+            # print("self.bin_snps", self.bin_snps)
+            # print("bin_snps_min ", bin_snps_min )
+            # print("bin_snps_max ", bin_snps_max )
+            # print("bin_snps_pro ", bin_snps_pro )
+            # print(list(zip(self.bin_snps, bin_snps_pro)))
+            bin_cmap, bin_acolor = self.update_color(min_val=bin_snps_min, max_val=bin_snps_max)
+            bin_cmapg  = bin_cmap(self.bin_snps)
+            bin_cmapg  = bin_cmapg.tolist()
+            bin_acolor = bin_acolor.tolist()
+            # print("bin_cmapg", bin_cmapg)
+
             # print(f"ChromosomeController.display :: matrix = {matrix}")
             print(f"ChromosomeController.display :: matrix max = {matrix_max}")
             print(f"ChromosomeController.display :: matrix min = {matrix_min}")
             self.set_min_val(matrix_min)
             self.set_max_val(matrix_max)
 
-            acolor = self.update_color(min_val=matrix_min, max_val=matrix_max, display=False)
-            img    = self.cmap(matrix)
+            self.cmap, acolor = self.update_color(min_val=matrix_min, max_val=matrix_max)
+            img               = self.cmap(matrix)
 
             # print(f"ChromosomeController.display :: img = {img}")
             print(f"ChromosomeController.display :: img shape  = {img.shape}")
@@ -831,7 +921,12 @@ class ChromosomeController(flx.PyWidget):
                 col_to_color(col)
             
             col_to_color(acolord)
-            # print("acolord", acolord)
+            # print("acolord", acolord, type(acolord))
+            col_to_color(bin_cmapg)
+            # print("bin_cmapg", bin_cmapg, type(bin_cmapg))
+            col_to_color(bin_acolor)
+            # print("bin_acolor", bin_acolor, type(bin_acolor))
+
 
             colorlist = sorted(list(colorlist.keys()), key=lambda x: colorlist[x])
             # print(f"ChromosomeController.display :: imgd = {imgd}")
@@ -856,7 +951,13 @@ class ChromosomeController(flx.PyWidget):
                 "max_val"        : matrix_max,
                 "snps"           : f"{self.chromosome_snps:12,d}",
                 "first_position" : f"{self.chromosome_first_position:12,d}",
-                "last_position"  : f"{self.chromosome_last_position:12,d}"
+                "last_position"  : f"{self.chromosome_last_position:12,d}",
+                "bin_colorrange" : bin_acolor,
+                "bin_snps_color" : bin_cmapg,
+                "bin_snps"       : self.bin_snps,
+                "bin_snps_min"   : bin_snps_min,
+                "bin_snps_max"   : bin_snps_max
+
             })
 
     def format_range(self):
@@ -913,10 +1014,10 @@ class GenomeController(flx.PyWidget):
     genome_snps      = flx.IntProp(    -1, settable=True, doc="number of snps")
     filename         = flx.StringProp("-", settable=True, doc="filename")
 
-
     chromosome_name  = flx.StringProp("", settable=True, doc="current chromosome")
+
     _combo_chromosome_names_text = "Select chromosome"
-    _is_loaded = False
+    _is_loaded                   = False
 
     def init(self, parent, height):
         super().init()
@@ -946,31 +1047,35 @@ class GenomeController(flx.PyWidget):
         setHidden(self.combo_chromosome_names, True)
 
     @flx.action
-    def set_genome(self, genome_name: str, genome: reader.Genome):
-        print("GenomeController.set_genome")
-        self.genome = genome
-        if self.genome is None:
-            print("GenomeController.set_genome :: empty")
-            self.set_genome_name(     "-")
-            self.set_vcf_name(        "-")
-            self.set_bin_width(       -1)
-            self.set_metric(          "-")
-            self.set_sample_names(    [])
-            self.set_sample_count(    -1)
-            self.set_chromosome_names([])
-            self.set_chromosome_count(-1)
-            self.set_genome_bins(     -1)
-            self.set_genome_snps(     -1)
-            self.set_filename(        "-")
+    def reset(self):
+        print("GenomeController.reset")
+        self.genome = None
+        self.set_genome_name(     "-")
+        self.set_vcf_name(        "-")
+        self.set_bin_width(       -1)
+        self.set_metric(          "-")
+        self.set_sample_names(    [])
+        self.set_sample_count(    -1)
+        self.set_chromosome_names([])
+        self.set_chromosome_count(-1)
+        self.set_genome_bins(     -1)
+        self.set_genome_snps(     -1)
+        self.set_filename(        "-")
 
-            setHidden(self.combo_chromosome_names, True)
-            self.set_chromosome_name("")
-            self.combo_chromosome_names.set_text(self._combo_chromosome_names_text)
-            self.combo_chromosome_names.set_options([])
+        print("GenomeController.reset :: reseting chromosome name")
+        self.root.chromosome.reset()
+        # setHidden(self.combo_chromosome_names, True)
+        self.combo_chromosome_names.set_text(self._combo_chromosome_names_text)
+        self.combo_chromosome_names.set_options([])
+        self.set_chromosome_name("-")
+        print("GenomeController.reset :: reseting chromosome name :: done")
 
-        else:
-            print("GenomeController.set_genome :: valid")
-            self.set_genome_name(     genome_name)
+    @flx.action
+    def update(self):
+        print("GenomeController.update")
+
+        if self.genome is not None and self.genome_name != "-":
+            print("GenomeController.update :: updating :: chromosome_names", self.genome.chromosome_names)
             self.set_vcf_name(        self.genome.vcf_name)
             self.set_bin_width(       self.genome.bin_width)
             self.set_metric(          self.genome.metric)
@@ -982,24 +1087,42 @@ class GenomeController(flx.PyWidget):
             self.set_genome_snps(     self.genome.genome_snps)
             self.set_filename(        self.genome.filename)
 
-            setHidden(self.combo_chromosome_names, False)
-            self.set_chromosome_name("")
+            print("GenomeController.update :: updating :: showing chromosome names")
             self.combo_chromosome_names.set_text(self._combo_chromosome_names_text)
             self.combo_chromosome_names.set_options(self.chromosome_names)
+            setHidden(self.combo_chromosome_names, False)
+            print("GenomeController.update :: updating :: selecting chromosome name")
             self.combo_chromosome_names.set_selected_index(0)
+            print("GenomeController.update :: updating :: done")
+            # setHidden(self.combo_chromosome_names, False)
+
+    @flx.action
+    def set_genome(self, genome_name: str, genome: reader.Genome):
+        if self._is_loaded:
+            print("GenomeController.set_genome :: genome_name", genome_name)
+            
+            self.reset()
+
+            self.genome = genome
+
+            if self.genome is not None:
+                print("GenomeController.set_genome :: valid")
+                self.set_genome_name(     genome_name)
+                self.update()
+                print("GenomeController.set_genome :: valid :: done")
 
     @flx.action
     def set_chromosome_name(self, chromosome_name: str):
-        if self._is_loaded and chromosome_name != "":
+        if self._is_loaded:
             print("GenomeController.set_chromosome_name", chromosome_name)
+
             self._mutate_chromosome_name(chromosome_name)
 
             if (
-                self._is_loaded and
-                self.genome_name     != "" and
-                self.bin_width       != -1 and self.bin_width != "" and
-                self.metric          != "" and
-                self.chromosome_name != ""
+                self.genome_name     != "" and self.genome_name     != "-" and
+                self.bin_width       != -1 and self.bin_width       != "-" and
+                self.metric          != "" and self.metric          != "-" and
+                self.chromosome_name != "" and self.chromosome_name != "-"
             ):
                 print("GenomeController.set_chromosome_name", self.genome_name, self.bin_width, self.metric, self.chromosome_name)
 
@@ -1008,8 +1131,8 @@ class GenomeController(flx.PyWidget):
                 print("GenomeController.set_chromosome_name", chromosome_name, "INCOMPLETE")
 
     @flx.reaction("combo_chromosome_names.selected_key")
-    def reaction_combo_chromosome_names(self, ev):
-        print("GenomeController.reaction_combo_chromosome_names")
+    def reaction_combo_chromosome_names(self, *args):
+        print("GenomeController.reaction_combo_chromosome_names", self.chromosome_names)
         self.set_chromosome_name(self.combo_chromosome_names.selected_key)
 
 
@@ -1020,17 +1143,23 @@ class GenomesController(flx.PyComponent):
 
         self._genomes : reader.Genomes   = None
 
-    # def genome(self) -> GenomeController:
-    #     return GenomeController(self._genomes.genome)
-
-    # def chromosomes(self) -> reader.ChromosomeNamesType:
-    #     return self._genomes.chromosomes
-
-    # def chromosome(self) -> ChromosomeController:
-    #     return ChromosomeController(self._genomes.chromosome)
+    def reset(self):
+        self.root.genome.reset()
 
     def set_genomes(self, genomes: reader.Genomes):
+        print(f"GenomesController.set_genomes")
         self._genomes = genomes
+        self.reset()
+
+    def update_genome(self, genome_name: str, bin_width: int, metric: str):
+        print(f"GenomesController.update_genome genome_name {genome_name} bin_width {bin_width} metric {metric}")
+        genome = self.load_genome(genome_name, bin_width, metric)
+        self.root.genome.set_genome(genome_name, genome)
+
+    def update_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str):
+        print(f"GenomesController.update_chromosome genome_name {genome_name} bin_width {bin_width} metric {metric} chromosome_name {chromosome_name}")
+        chromosome = self.load_chromosome(genome_name, bin_width, metric, chromosome_name)
+        self.root.chromosome.set_chromosome(chromosome)
 
     def genomes(self):
         return self._genomes.genomes
@@ -1063,20 +1192,6 @@ class GenomesController(flx.PyComponent):
 
     def load_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str) -> reader.Chromosome:
         return self._genomes.load_chromosome(genome_name, bin_width, metric, chromosome_name)
-
-
-
-    # @flx.action
-    def update_genome(self, genome_name: str, bin_width: int, metric: str):
-        print(f"MainController.update_genome genome_name {genome_name} bin_width {bin_width} metric {metric}")
-        genome = self.load_genome(genome_name, bin_width, metric)
-        self.root.genome.set_genome(genome_name, genome)
-
-    # @flx.action
-    def update_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str):
-        print(f"MainController.update_chromosome genome_name {genome_name} bin_width {bin_width} metric {metric} chromosome_name {chromosome_name}")
-        chromosome = self.load_chromosome(genome_name, bin_width, metric, chromosome_name)
-        self.root.chromosome.set_chromosome(chromosome)
 
 
 
