@@ -110,20 +110,20 @@ class Forms(flx.Widget):
     # bin_snps                  = flx.ListProp(       [], settable=True, doc="number of snps per bin")
     # chromosome_name           = flx.StringProp(    "-", settable=True, doc="name of the chromosome")
 
-    genomes          = flx.ListProp([], settable=True, doc="List of genomes")
-    bin_widths       = flx.ListProp([], settable=True, doc="List of bin width")
-    metrics          = flx.ListProp([], settable=True, doc="List of metrics")
-    chromosomes      = flx.ListProp([], settable=True, doc="List of chromosomes")
-    samples          = flx.ListProp([], settable=True, doc="List of samples")
+    genomes          = flx.ListProp(  [] , settable=True, doc="List of genomes")
+    bin_widths       = flx.ListProp(  [] , settable=True, doc="List of bin width")
+    metrics          = flx.ListProp(  [] , settable=True, doc="List of metrics")
+    chromosomes      = flx.ListProp(  [] , settable=True, doc="List of chromosomes")
+    samples          = flx.ListProp(  [] , settable=True, doc="List of samples")
 
-    genome           = flx.StringProp(    "-", settable=True, doc="Genome name")
-    bin_width        = flx.IntProp   (     -1, settable=True, doc="Bin Width name")
-    metric           = flx.StringProp(    "-", settable=True, doc="Metric name")
-    chromosome       = flx.StringProp(    "-", settable=True, doc="Genome name")
-    sample           = flx.StringProp(    "-", settable=True, doc="Sample name")
+    genome           = flx.StringProp("-", settable=True, doc="Genome name")
+    bin_width        = flx.StringProp("-", settable=True, doc="Bin Width name")
+    metric           = flx.StringProp("-", settable=True, doc="Metric name")
+    chromosome       = flx.StringProp("-", settable=True, doc="Genome name")
+    sample           = flx.StringProp("-", settable=True, doc="Sample name")
 
-    genome_data      = flx.DictProp({}, settable=True, doc="Genome info")
-    chromosome_data  = flx.DictProp({}, settable=True, doc="Chromosome info")
+    genome_data      = flx.DictProp(  {} , settable=True, doc="Genome info")
+    chromosome_data  = flx.DictProp(  {} , settable=True, doc="Chromosome info")
 
     _sel_genomes     = "Select genome"
     _sel_bin_widths  = "Select bin width"
@@ -135,32 +135,29 @@ class Forms(flx.Widget):
     colors_data      = flx.DictProp(color_maps, settable=False, doc="List of colors")
     _sel_colors      = "Select color"
 
-    def sel_genomes(self, ev):
-        print("sel_genomes", ev)
 
-    def sel_bin_widths(self, ev):
-        print("sel_bin_widths", ev)
-
-    def sel_metrics(self, ev):
-        print("sel_metrics", ev)
-
-    def sel_chromosomes(self, ev):
-        print("sel_chromosomes", ev)
-
-    def sel_samples(self, ev):
-        print("sel_samples", ev)
-
-    def sel_colors(self, ev):
+    def _getElementById(self, eid):
         global window
-        color = window.document.getElementById("sel_colors").value
-        print("sel_colors", color)
-        self.set_color(color)
+        el = window.document.getElementById(eid)
+        return el
+
+    def _get_and_set(self, eid, f):
+        # print("Forms._get_and_set", eid, f)
+        el = self._getElementById(eid)
+        # print("Forms._get_and_set", eid, f, el)
+        if el:
+            val = el.value
+            # print("Forms._get_and_set", eid, f, el, val)
+            if val:
+                f(val)
 
     def _create_dom(self):
         print("Forms._create_dom")
         # Use this method to create a root element for this widget.
         # If you just want a <div> you don't have to implement this.
-        return flx.create_element('div')  # the default is <div>
+        main_div = flx.create_element('div', {"id": "main"}, "main div")  # the default is <div>
+        # self.reaction
+        return main_div
 
     def _render_dom(self):
         print("Forms._render_dom")
@@ -169,20 +166,26 @@ class Forms(flx.Widget):
         # (which must match the type produced in _create_dom()).
         # genomes = self.root.genomes.genomes()
 
-        els = []
+        _getElementById = self._getElementById
+        _get_and_set    = self._get_and_set
 
-        def gen_opts(options, option, place_holder_name, place_holder_value, class_str, callback):
+        els = []
+                    
+        def gen_opts(options, option, place_holder_name, place_holder_value, class_str, element_id, callback):
             # print(options, option, place_holder_name, place_holder_value, elid, class_str)
             lph   = [flx.create_element('option', {"value": place_holder_value}, place_holder_name)]
             lopts = [flx.create_element('option', {"value": s, "selected": "selected" if s == option  else None}, s) for s in lph+options]
-            lel   =  flx.create_element('select', {"class": class_str, "disabled": False if options else True, "onchange": callback}, *lopts)
+            lel   =  flx.create_element('select', {"class": class_str, "disabled": False if options else True, "id": element_id, "onchange": gen_getter_and_setter(element_id, callback)}, *lopts)
             return lel
 
-        self.sel_genomes_el     = gen_opts(self.genomes    , self.genome    , self._sel_genomes    , "-", "test_class", self.sel_genomes)
-        self.sel_bin_widths_el  = gen_opts(self.bin_widths , self.bin_width , self._sel_bin_widths , "-", "test_class", self.sel_bin_widths)
-        self.sel_metrics_el     = gen_opts(self.metrics    , self.metric    , self._sel_metrics    , "-", "test_class", self.sel_metrics)
-        self.sel_chromosomes_el = gen_opts(self.chromosomes, self.chromosome, self._sel_chromosomes, "-", "test_class", self.sel_chromosomes)
-        self.sel_samples_el     = gen_opts(self.samples    , self.sample    , self._sel_samples    ,  -1, "test_class", self.sel_samples)
+        def gen_getter_and_setter(eid, f):
+            return lambda x: _get_and_set(eid, f)
+
+        self.sel_genomes_el     = gen_opts(self.genomes    , self.genome    , self._sel_genomes    , "-", "test_class", "sel_genomes"    , self.set_genome    )
+        self.sel_bin_widths_el  = gen_opts(self.bin_widths , self.bin_width , self._sel_bin_widths , "-", "test_class", "sel_bin_widths" , self.set_bin_width )
+        self.sel_metrics_el     = gen_opts(self.metrics    , self.metric    , self._sel_metrics    , "-", "test_class", "sel_metrics"    , self.set_metric    )
+        self.sel_chromosomes_el = gen_opts(self.chromosomes, self.chromosome, self._sel_chromosomes, "-", "test_class", "sel_chromosomes", self.set_chromosome)
+        self.sel_samples_el     = gen_opts(self.samples    , self.sample    , self._sel_samples    , "-", "test_class", "sel_samples"    , self.set_sample    )
 
         els += [
             self.sel_genomes_el,
@@ -204,106 +207,250 @@ class Forms(flx.Widget):
                 color_opt = flx.create_element('optgroup', {"label": color_group}, *color_names_opts)
                 colors_opts.append(color_opt)
                 # colors_opts.extend(color_names_opts)
-            self.sel_colors_el = flx.create_element('select', {"id": "sel_colors", "onchange": self.sel_colors}, *colors_opts)
+            self.sel_colors_el = flx.create_element('select', {"id": "sel_colors", "onchange": gen_getter_and_setter("sel_colors", self.set_color)}, *colors_opts)
             els += [self.sel_colors_el]
-
-        els += [
-            flx.create_element('span', {},
-                'I happen to know that your age is %i.' % self.age
-            ),
-        ]
 
         els += [
             flx.create_element('br'),
         ]
 
         els += [
-            flx.create_element('button', {'onclick': self.increase_age},
-                'Next year ...'
-            )
+            flx.create_element('span', {}, 'color: {}.'     .format(self.color)),
+            flx.create_element('span', {}, 'genome: {}.'    .format(self.genome)),
+            flx.create_element('span', {}, 'bin_width: {}.' .format(self.bin_width)),
+            flx.create_element('span', {}, 'metric: {}.'    .format(self.metric)),
+            flx.create_element('span', {}, 'chromosome: {}.'.format(self.chromosome)),
+            flx.create_element('span', {}, 'sample: {}.'    .format(self.sample)),
+        ]
+
+        els += [
+            flx.create_element('br'),
         ]
 
         return els
 
+
+
     @flx.action
     def reset_genomes(self):
-        self.reset_bin_widths()
-        self.reset_genome_data()
-        self.set_genomes([])
+        if self.genomes:
+            print("Forms.reset_genomes")
+            # self.reset_bin_widths()
+            # self.reset_genome_data()
+            self.set_genomes([])
 
     @flx.action
     def reset_bin_widths(self):
-        self.reset_metrics(53)
-        self.set_bin_widths([])
+        if self.bin_widths:
+            print("Forms.reset_bin_widths")
+            # self.reset_metrics()
+            self.set_bin_widths([])
 
     @flx.action
     def reset_metrics(self):
-        self.reset_chromosomes()
-        self.set_metrics([])
+        if self.metrics:
+            print("Forms.reset_metrics")
+            # self.reset_chromosomes()
+            self.set_metrics([])
 
     @flx.action
     def reset_chromosomes(self):
-        # self.reset_colors()
-        self.reset_samples()
+        if self.chromosomes:
+            print("Forms.reset_chromosomes")
+            # self.reset_colors()
+            # self.reset_samples()
+            # self.reset_chromosome_data()
+            self.set_chromosomes([])
+
+    @flx.action
+    def reset_samples(self):
+        if self.samples:
+            print("Forms.reset_samples")
+            # self.reset_canvas()
+            self.set_samples([])
+
+
+    @flx.action
+    def reset_canvas(self):
+        # print("Forms.reset_canvas")
+        pass
+
+
+
+    @flx.action
+    def reset_genome_data(self):
+        if self.genome_data:
+            print("Forms.reset_genome_data")
+            # self.reset_chromosome_data()
+            self.set_genome_data({})
+
+    @flx.action
+    def reset_chromosome_data(self):
+        if self.chromosome_data:
+            print("Forms.reset_chromosome_data")
+            # self.reset_canvas()
+            self.set_chromosome_data({})
+
+
+
+    @flx.action
+    def reset_genome(self):
+        if self.genome != "-":
+            print("Forms.reset_genome")
+            # self.reset_bin_width()
+            self.set_genome("-")
+
+    @flx.action
+    def reset_bin_width(self):
+        if self.bin_width != "-":
+            print("Forms.reset_bin_width")
+            # self.reset_metric()
+            self.set_bin_width("-")
+
+    @flx.action
+    def reset_metric(self):
+        if self.metric != "-":
+            print("Forms.reset_metric")
+            # self.reset_chromosome()
+            self.set_metric("-")
+
+    @flx.action
+    def reset_chromosome(self):
+        if self.chromosome != "-":
+            print("Forms.reset_chromosome")
+            # self.reset_color()
+            # self.reset_sample()
+            self.set_chromosome("-")
+
+    @flx.action
+    def reset_sample(self):
+        if self.sample != "-":
+            print("Forms.reset_sample")
+            # self.reset_canvas()
+            self.set_sample("-")
+
+
+
+    @flx.reaction('genomes')
+    def reaction_set_genomes(self, *ev):
+        print("Forms.reaction_set_genomes", JSON.stringify(self.genomes))
+        self.reset_genome()
+        self.reset_bin_widths()
+        if self.genomes:
+            self.set_genome(self.genomes[0])
+
+    @flx.reaction('bin_widths')
+    def reaction_set_bin_widths(self, *ev):
+        print("Forms.reaction_set_bin_widths", JSON.stringify(self.bin_widths))
+        self.reset_bin_width()
+        self.reset_metrics()
+        if self.bin_widths:
+            self.set_bin_width(self.bin_widths[0])
+
+    @flx.reaction('metrics')
+    def reaction_set_metrics(self, *ev):
+        print("Forms.reaction_set_metrics", JSON.stringify(self.metrics))
+        self.reset_metric()
+        self.reset_chromosomes()
+        if self.metrics:
+            self.set_metric(self.metrics[0])
+
+    @flx.reaction('chromosomes')
+    def reaction_set_chromosomes(self, *ev):
+        print("Forms.reaction_set_chromosomes", JSON.stringify(self.chromosomes))
+        self.reset_chromosome()
         self.reset_chromosome_data()
-        self.set_chromosomes([])
+        self.reset_samples()
+        if self.chromosomes:
+            self.set_chromosome(self.chromosomes[0])
+
+    @flx.reaction('samples')
+    def reaction_set_samples(self, *ev):
+        print("Forms.reaction_set_samples", JSON.stringify(self.samples))
+        self.reset_sample()
+        self.reset_canvas()
+        if self.samples:
+            self.set_sample(self.samples[0])
+    
+    @flx.reaction('colors_data')
+    def reaction_set_colors_data(self, *ev):
+        print("Forms.reaction_colors_data", JSON.stringify(self.colors_data))
+        self.reset_canvas()
+        if self.colors_data:
+            color = self.colors_data[list(self.colors_data.keys())[0]][0]
+            print("SETTING COLOR", color)
+            self.set_color(color)
+
+
+
+    @flx.reaction('genome_data')
+    def reaction_set_genome_data(self, *ev):
+        print("Forms.reaction_set_genome_data", JSON.stringify(self.genome_data))
+        pass
+
+    @flx.reaction('chromosome_data')
+    def reaction_set_chromosome_data(self, *ev):
+        print("Forms.reaction_set_chromosome_data", JSON.stringify(self.chromosome_data))
+        pass
+
+
+    @flx.reaction('genome')
+    def reaction_set_genome(self, *ev):
+        print("Forms.reaction_set_genome", self.genome)
+        self.reset_bin_widths()
+        if self.genome != "-":
+            # self.reset_bin_width()
+            # self.root.update_bin_widths()
+
+            self.root.ui_update_genome_info(self.genome)
+            self.root.ui_update_bin_widths(self.genome)
+
+    @flx.reaction('bin_width')
+    def reaction_set_bin_width(self, *ev):
+        print("Forms.reaction_set_bin_width", self.bin_width)
+        # self.reset_metric()
+        self.reset_metrics()
+        # self.root.update_metrics()
+        if self.bin_width != "-":
+            self.root.ui_update_metrics(self.genome, self.bin_width)
+
+    @flx.reaction('metric')
+    def reaction_set_metric(self, *ev):
+        print("Forms.reaction_set_metric", self.metric)
+        # self.reset_chromosome()
+        self.reset_chromosomes()
+        # self.root.update_chromosomes()
+        if self.metric != "-":
+            self.root.ui_update_chromosomes(self.genome, self.bin_width, self.metric)
+
+    @flx.reaction('chromosome')
+    def reaction_set_chromosome(self, *ev):
+        print("Forms.reaction_set_chromosome", self.chromosome)
+        # self.reset_sample()
+        self.reset_samples()
+        # self.root.update_samples()
+        if self.chromosome != "-":
+            self.root.ui_update_chromosome_info(self.genome, self.bin_width, self.metric, self.chromosome)
+            self.root.ui_update_samples(self.genome, self.bin_width, self.metric, self.chromosome)
+
+    @flx.reaction('sample')
+    def reaction_set_sample(self, *ev):
+        print("Forms.reaction_set_sample", self.sample)
+        # self.reset_canvas()
+        self.root.ui_update_canvas(self.genome, self.bin_width, self.metric, self.chromosome, self.sample)
+
+
+    @flx.reaction('color')
+    def reaction_set_color(self, *ev):
+        print("Forms.reaction_set_color", self.color)
+        # self.reset_canvas()
+        self.root.update_canvas()
+
 
     # @flx.action
     # def reset_colors(self):
     #     self.reset_samples()
     #     self.set_colors([])
-
-    @flx.action
-    def reset_samples(self):
-        self.reset_canvas()
-        self.set_samples([])
-
-
-    @flx.action
-    def reset_canvas(self):
-        pass
-
-
-    @flx.action
-    def reset_genome_data(self):
-        self.reset_chromosome_data()
-        self.set_genome_data({})
-
-    @flx.action
-    def reset_chromosome_data(self):
-        self.reset_canvas()
-        self.set_chromosome_data({})
-
-
-    @flx.action
-    def reset_genome(self):
-        self.reset_bin_width()
-        self.set_genome("-")
-
-    @flx.action
-    def reset_bin_width(self):
-        self.reset_metric()
-        self.set_bin_width(-1)
-
-    @flx.action
-    def reset_metric(self):
-        self.reset_chromosome()
-        self.set_metric("-")
-
-    @flx.action
-    def reset_chromosome(self):
-        self.reset_color()
-        self.set_chromosome("-")
-
-    @flx.action
-    def reset_color(self):
-        self.reset_sample()
-        self.set_color("-")
-
-    @flx.action
-    def reset_sample(self):
-        self.reset_canvas()
-        self.set_sample("-")
 
 
 class Graph(flx.CanvasWidget):
@@ -775,7 +922,7 @@ class BrowserUI(flx.PyWidget):
     @flx.action
     def update_genome_names(self):
         print("BrowserUI.update_genome_names")
-        val = self.root.genomes.genomes()
+        val = self.root.genomes.genome_names()
         self.set_genome_names(val)
         self.combo_genome_names.set_selected_index(0)
 
@@ -834,7 +981,7 @@ class BrowserUI(flx.PyWidget):
 
 
 
-class ChromosomeController(flx.PyWidget):
+class ChromosomeController(flx.PyComponent):
     filename                  = flx.StringProp(    "-", settable=True, doc="file name")
 
     vcf_name                  = flx.StringProp(    "-", settable=True, doc="vcf name")
@@ -871,7 +1018,8 @@ class ChromosomeController(flx.PyWidget):
 
     _is_loaded = False
 
-    def init(self, parent, height):
+    # def init(self, parent, height):
+    def init(self):
         super().init()
 
         self._is_loaded = False
@@ -880,41 +1028,41 @@ class ChromosomeController(flx.PyWidget):
 
         self.cmap = None
 
-        colors = []
-        for k,v in color_maps.items():
-            for z in v:
-                colors.append((z,f"{k} - {z}"))
+        # colors = []
+        # for k,v in color_maps.items():
+        #     for z in v:
+        #         colors.append((z,f"{k} - {z}"))
 
-        with flx.VBox(flex=4, parent=parent):
-            with flx.HBox(flex=1):
-                flx.Label(text=lambda: f"Database Filename: {os.path.basename(self.filename)}", flex=1)
-                flx.Label(text=lambda: f"# Matrix Size: {self.matrix_size:9,d}"               , flex=1)
-                flx.Label(text=lambda: f"First Position: {self.chromosome_first_position:9,d}", flex=1)
-                flx.Label(text=lambda: f"Last Position: {self.chromosome_last_position:9,d}"  , flex=1)
+        # with flx.VBox(flex=4, parent=parent):
+        #     with flx.HBox(flex=1):
+        #         flx.Label(text=lambda: f"Database Filename: {os.path.basename(self.filename)}", flex=1)
+        #         flx.Label(text=lambda: f"# Matrix Size: {self.matrix_size:9,d}"               , flex=1)
+        #         flx.Label(text=lambda: f"First Position: {self.chromosome_first_position:9,d}", flex=1)
+        #         flx.Label(text=lambda: f"Last Position: {self.chromosome_last_position:9,d}"  , flex=1)
 
-            with flx.HBox(flex=1):
-                flx.Label(text=lambda: f"# Bins: {self.bin_count:9,d}"                        , flex=1)
-                flx.Label(text=lambda: f"# Bin Min: {self.bin_min:9,d}"                       , flex=1)
-                flx.Label(text=lambda: f"# Bin Max: {self.bin_max:9,d}"                       , flex=1)
+        #     with flx.HBox(flex=1):
+        #         flx.Label(text=lambda: f"# Bins: {self.bin_count:9,d}"                        , flex=1)
+        #         flx.Label(text=lambda: f"# Bin Min: {self.bin_min:9,d}"                       , flex=1)
+        #         flx.Label(text=lambda: f"# Bin Max: {self.bin_max:9,d}"                       , flex=1)
 
-            with flx.HBox(flex=1):
-                flx.Label(text=lambda: f"# SNPs: {self.chromosome_snps:9,d}"                  , flex=1)
-                flx.Label(text=lambda: f"# Bin SNPs Min: {self.bin_snps_min:9,d}"             , flex=1)
-                flx.Label(text=lambda: f"# Bin SNPs Max: {self.bin_snps_max:9,d}"             , flex=1)
+        #     with flx.HBox(flex=1):
+        #         flx.Label(text=lambda: f"# SNPs: {self.chromosome_snps:9,d}"                  , flex=1)
+        #         flx.Label(text=lambda: f"# Bin SNPs Min: {self.bin_snps_min:9,d}"             , flex=1)
+        #         flx.Label(text=lambda: f"# Bin SNPs Max: {self.bin_snps_max:9,d}"             , flex=1)
 
-            with flx.HBox(flex=1) as formbox:
-                self.combo_color_names = ui.ComboBox(text="Select color scheme", editable=False, options=colors, flex=1)
-                self.combo_color_names.set_text(self.color_name)
-                # flx.Label(text=lambda: f"Color name: {self.color_name}"             , flex=1)
+        #     with flx.HBox(flex=1) as formbox:
+        #         self.combo_color_names = ui.ComboBox(text="Select color scheme", editable=False, options=colors, flex=1)
+        #         self.combo_color_names.set_text(self.color_name)
+        #         # flx.Label(text=lambda: f"Color name: {self.color_name}"             , flex=1)
 
-                self.combo_sample_names = ui.ComboBox(text="Select sample name", editable=False, options=[], flex=1)
-                self.combo_sample_names.set_text("Select sample name")
-                # flx.Label(text=lambda: f"Sample name: {self.sample_name}"             , flex=1)
+        #         self.combo_sample_names = ui.ComboBox(text="Select sample name", editable=False, options=[], flex=1)
+        #         self.combo_sample_names.set_text("Select sample name")
+        #         # flx.Label(text=lambda: f"Sample name: {self.sample_name}"             , flex=1)
 
-                self.forms = Forms()
+        #         self.forms = Forms()
 
-            with flx.HBox(flex=height-4) as graphbox:
-                self.graph = Graph(graphbox)
+        #     with flx.HBox(flex=height-4) as graphbox:
+        #         self.graph = Graph(graphbox)
 
         self._is_loaded = True
 
@@ -948,10 +1096,12 @@ class ChromosomeController(flx.PyWidget):
         self.set_sample_count(              -1)
         self.set_sample_name(              "-")
 
-        self.combo_sample_names.set_text("Select sample name")
-        self.combo_sample_names.set_options(self.sample_names)
-        self.combo_sample_names.set_selected_index(None)
-        self.graph.reset()
+        # self.combo_sample_names.set_text("Select sample name")
+        # self.combo_sample_names.set_options(self.sample_names)
+        # self.combo_sample_names.set_selected_index(None)
+
+        # self.graph.reset()
+
         print("ChromosomeController.reset :: done")
 
     @flx.action
@@ -988,9 +1138,9 @@ class ChromosomeController(flx.PyWidget):
             self.set_sample_count(             self.chromosome.sample_count)
             self.set_sample_name(              "-")
 
-            self.combo_sample_names.set_text("Select sample name")
-            self.combo_sample_names.set_options(self.sample_names)
-            self.combo_sample_names.set_selected_index(0)
+            # self.combo_sample_names.set_text("Select sample name")
+            # self.combo_sample_names.set_options(self.sample_names)
+            # self.combo_sample_names.set_selected_index(0)
 
     @flx.action
     def set_chromosome(self, chromosome: reader.Chromosome):
@@ -1011,15 +1161,15 @@ class ChromosomeController(flx.PyWidget):
     def reaction_max_val(self):#, ev):
         self.cmap, _ = self.update_color()
 
-    @flx.reaction("combo_color_names.selected_key")
-    def reaction_combo_color_names(self, *args):
-        print("ChromosomeController.reaction_combo_color_names", self.combo_color_names.selected_key)
-        self.set_color_name(self.combo_color_names.selected_key)
+    # @flx.reaction("combo_color_names.selected_key")
+    # def reaction_combo_color_names(self, *args):
+    #     print("ChromosomeController.reaction_combo_color_names", self.combo_color_names.selected_key)
+    #     self.set_color_name(self.combo_color_names.selected_key)
 
-    @flx.reaction("combo_sample_names.selected_key")
-    def reaction_combo_sample_names(self, *args):
-        print("ChromosomeController.reaction_combo_sample_names", self.combo_sample_names.selected_key)
-        self.set_sample_name(self.combo_sample_names.selected_key)
+    # @flx.reaction("combo_sample_names.selected_key")
+    # def reaction_combo_sample_names(self, *args):
+    #     print("ChromosomeController.reaction_combo_sample_names", self.combo_sample_names.selected_key)
+    #     self.set_sample_name(self.combo_sample_names.selected_key)
 
     @flx.reaction
     def reaction_sample_name(self):
@@ -1201,201 +1351,8 @@ class ChromosomeController(flx.PyWidget):
 
 
 
-class GenomeController(flx.PyWidget):
-    genome_name      = flx.StringProp("-", settable=True, doc="genome name")
-    vcf_name         = flx.StringProp("-", settable=True, doc="vcf name")
-    bin_width        = flx.IntProp(    -1, settable=True, doc="current bin width")
-    metric           = flx.StringProp("-", settable=True, doc="statistics metric")
-    sample_names     = flx.ListProp([]   , settable=True, doc="sample names")
-    sample_count     = flx.IntProp(    -1, settable=True, doc="number of samples")
-    chromosome_names = flx.ListProp([]   , settable=True, doc="chromosome names")
-    chromosome_count = flx.IntProp(    -1, settable=True, doc="number of chromosomes")
-    genome_bins      = flx.IntProp(    -1, settable=True, doc="number of bins")
-    genome_snps      = flx.IntProp(    -1, settable=True, doc="number of snps")
-    filename         = flx.StringProp("-", settable=True, doc="filename")
 
-    chromosome_name  = flx.StringProp("", settable=True, doc="current chromosome")
-
-    _combo_chromosome_names_text = "Select chromosome"
-    _is_loaded                   = False
-
-    def init(self, parent, height):
-        super().init()
-
-        self._is_loaded = False
-
-        self.genome     : reader.Genome        = None
-
-        with flx.VBox(flex=height, parent=parent):
-            with flx.HBox(flex=4):
-                flx.Label(text=lambda: f"VCF Name: {os.path.basename(self.vcf_name)}"             , flex=1)
-                flx.Label(text=lambda: f"Database Filename: {os.path.basename(self.filename)}"    , flex=1)
-                flx.Label(text=lambda: f"Bin Width: {self.bin_width:9,d}"           , flex=1)
-                flx.Label(text=lambda: f"Metric: {self.metric}"                     , flex=1)
-
-            with flx.HBox(flex=4):
-                flx.Label(text=lambda: f"# Samples: {self.sample_count:9,d}"        , flex=1)
-                flx.Label(text=lambda: f"# Bins: {self.genome_bins:9,d}"            , flex=1)
-                flx.Label(text=lambda: f"# SNPs: {self.genome_snps:9,d}"            , flex=1)
-
-            with flx.HBox(flex=4):
-                flx.Label(text=lambda: f"# Chromosomes: {self.chromosome_count:9,d}", flex=1)
-                self.combo_chromosome_names = ui.ComboBox(text=self._combo_chromosome_names_text, editable=False, options=[], flex=3, css_class="combo_sel")
-
-        self._is_loaded = True
-
-        setHidden(self.combo_chromosome_names, True)
-
-    @flx.action
-    def reset(self):
-        print("GenomeController.reset")
-        self.genome = None
-        self.set_genome_name(     "-")
-        self.set_vcf_name(        "-")
-        self.set_bin_width(       -1)
-        self.set_metric(          "-")
-        self.set_sample_names(    [])
-        self.set_sample_count(    -1)
-        self.set_chromosome_names([])
-        self.set_chromosome_count(-1)
-        self.set_genome_bins(     -1)
-        self.set_genome_snps(     -1)
-        self.set_filename(        "-")
-
-        print("GenomeController.reset :: reseting chromosome name")
-        self.root.chromosome.reset()
-        # setHidden(self.combo_chromosome_names, True)
-        self.combo_chromosome_names.set_text(self._combo_chromosome_names_text)
-        self.combo_chromosome_names.set_options([])
-        self.set_chromosome_name("-")
-        print("GenomeController.reset :: reseting chromosome name :: done")
-
-    @flx.action
-    def update(self):
-        print("GenomeController.update")
-
-        if self.genome is not None and self.genome_name != "-":
-            print("GenomeController.update :: updating :: chromosome_names", self.genome.chromosome_names)
-            self.set_vcf_name(        self.genome.vcf_name)
-            self.set_bin_width(       self.genome.bin_width)
-            self.set_metric(          self.genome.metric)
-            self.set_sample_names(    self.genome.sample_names)
-            self.set_sample_count(    self.genome.sample_count)
-            self.set_chromosome_names(self.genome.chromosome_names)
-            self.set_chromosome_count(self.genome.chromosome_count)
-            self.set_genome_bins(     self.genome.genome_bins)
-            self.set_genome_snps(     self.genome.genome_snps)
-            self.set_filename(        self.genome.filename)
-
-            print("GenomeController.update :: updating :: showing chromosome names")
-            self.combo_chromosome_names.set_text(self._combo_chromosome_names_text)
-            self.combo_chromosome_names.set_options(self.chromosome_names)
-            setHidden(self.combo_chromosome_names, False)
-            print("GenomeController.update :: updating :: selecting chromosome name")
-            self.combo_chromosome_names.set_selected_index(0)
-            print("GenomeController.update :: updating :: done")
-            # setHidden(self.combo_chromosome_names, False)
-
-    @flx.action
-    def set_genome(self, genome_name: str, genome: reader.Genome):
-        if self._is_loaded:
-            print("GenomeController.set_genome :: genome_name", genome_name)
-            
-            self.reset()
-
-            self.genome = genome
-
-            if self.genome is not None:
-                print("GenomeController.set_genome :: valid")
-                self.set_genome_name(     genome_name)
-                self.update()
-                print("GenomeController.set_genome :: valid :: done")
-
-    @flx.action
-    def set_chromosome_name(self, chromosome_name: str):
-        if self._is_loaded:
-            print("GenomeController.set_chromosome_name", chromosome_name)
-
-            self._mutate_chromosome_name(chromosome_name)
-
-            if (
-                self.genome_name     != "" and self.genome_name     != "-" and
-                self.bin_width       != -1 and self.bin_width       != "-" and
-                self.metric          != "" and self.metric          != "-" and
-                self.chromosome_name != "" and self.chromosome_name != "-"
-            ):
-                print("GenomeController.set_chromosome_name", self.genome_name, self.bin_width, self.metric, self.chromosome_name)
-
-                self.root.genomes.update_chromosome(self.genome_name, self.bin_width, self.metric, self.chromosome_name)
-            else:
-                print("GenomeController.set_chromosome_name", chromosome_name, "INCOMPLETE")
-
-    @flx.reaction("combo_chromosome_names.selected_key")
-    def reaction_combo_chromosome_names(self, *args):
-        print("GenomeController.reaction_combo_chromosome_names", self.chromosome_names)
-        self.set_chromosome_name(self.combo_chromosome_names.selected_key)
-
-
-
-class GenomesController(flx.PyComponent):
-    def init(self):
-        super().init()
-
-        self._genomes : reader.Genomes   = None
-
-    def reset(self):
-        self.root.genome.reset()
-
-    def set_genomes(self, genomes: reader.Genomes):
-        print(f"GenomesController.set_genomes")
-        self._genomes = genomes
-        self.reset()
-
-    def update_genome(self, genome_name: str, bin_width: int, metric: str):
-        print(f"GenomesController.update_genome genome_name {genome_name} bin_width {bin_width} metric {metric}")
-        genome = self.load_genome(genome_name, bin_width, metric)
-        self.root.genome.set_genome(genome_name, genome)
-
-    def update_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str):
-        print(f"GenomesController.update_chromosome genome_name {genome_name} bin_width {bin_width} metric {metric} chromosome_name {chromosome_name}")
-        chromosome = self.load_chromosome(genome_name, bin_width, metric, chromosome_name)
-        self.root.chromosome.set_chromosome(chromosome)
-
-    def genomes(self):
-        return self._genomes.genomes
-
-    def genome_info(self, genome_name: str):
-        return self._genomes.genome_info(genome_name)
-
-    def bin_widths(self, genome_name: str) -> typing.List[str]:
-        return self._genomes.bin_widths(genome_name)
-
-    def bin_width_info(self, genome_name: str, bin_width: int):
-        return self._genomes.bin_width_info(genome_name, bin_width)
-
-    def metrics(self, genome_name: str, bin_width: int) -> typing.List[str]:
-        return self._genomes.metrics(genome_name, bin_width)
-
-    def metric_info(self, genome_name: str, bin_width: int, metric: str) -> typing.List[str]:
-        return self._genomes.metric_info(genome_name, bin_width, metric)
-
-    def chromosome_names(self, genome_name: str, bin_width: int, metric: str) -> typing.List[typing.Tuple[int, str]]:
-        val = self._genomes.chromosome_names(genome_name, bin_width, metric)
-        val = [v[1] for v in val]
-        return val
-
-    def update(self, verbose=False):
-        self._genomes.update(verbose=verbose)
-
-    def load_genome(self, genome_name: str, bin_width: int, metric: str) -> reader.Genome:
-        return self._genomes.load_genome(genome_name, bin_width, metric)
-
-    def load_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str) -> reader.Chromosome:
-        return self._genomes.load_chromosome(genome_name, bin_width, metric, chromosome_name)
-
-
-
-class MainController(flx.PyComponent):
+class MainController(flx.PyWidget):
     CSS = """
     .flx-ComboBox {
         background: #9d9 !important;
@@ -1419,19 +1376,158 @@ class MainController(flx.PyComponent):
     def init(self):
         super().init()
 
-        with flx.VBox(flex=1):
-            with flx.HFix(flex=1) as self.header:
-                self.BrowserUI  = BrowserUI(self.header, 1)
-            with flx.HFix(flex=3) as self.genomeBox:
-                self.genome     = GenomeController(self.genomeBox, 3)
-            with flx.HFix(flex=56) as self.chromosomeBox:
-                self.chromosome = ChromosomeController(self.chromosomeBox, 37)
+        self.genomes    = MainController.genomes_inst
+        self.forms      = Forms()
+        self.verbose    = False
+        self.genomes_update()
 
-        self.genomes    = GenomesController()
+        self.ui_update_genomes()
+        # self.BrowserUI.update_genome_names()
 
-        self.genomes.set_genomes(MainController.genomes_inst)
-        self.genomes.update(verbose=True)
-        self.BrowserUI.update_genome_names()
+    @flx.action
+    def ui_update_genomes(self):
+        print("MainController.ui_update_genomes")
+
+        genome_names = self.genomes_names()
+        print("MainController.ui_update_genomes", genome_names)
+        self.forms.set_genomes(genome_names)
+
+    @flx.action
+    def ui_update_genome_info(self, genome_name: str):
+        print("MainController.ui_update_genome_info :: genome_name", genome_name)
+
+        genome_info   = self.genomes_genome_info(genome_name)
+        genome_info_f = {k:v for k,v in genome_info.items() if isinstance(v, (int, float, str))}
+        print("MainController.ui_update_genome_info :: genome_info", genome_info_f)
+        self.forms.set_genome_data(genome_info_f)
+
+    @flx.action
+    def ui_update_bin_widths(self, genome_name: str):
+        print("MainController.ui_update_bin_widths :: genome_name", genome_name)
+
+        bin_widths   = self.genomes.bin_widths(genome_name)
+        bin_widths_f = [str(b) for b in bin_widths]
+        print("MainController.ui_update_bin_widths :: bin_widths", bin_widths_f)
+        self.forms.set_bin_widths(bin_widths_f)
+
+    @flx.action
+    def ui_update_metrics(self, genome_name: str, bin_width: str):
+        print("MainController.ui_update_metrics :: genome_name", genome_name, "bin_width", bin_width)
+        bin_width = int(bin_width)
+
+        metrics   = self.genomes_metrics(genome_name, bin_width)
+        print("MainController.ui_update_metrics :: metrics", metrics)
+        self.forms.set_metrics(metrics)
+    
+    @flx.action
+    def ui_update_chromosomes(self, genome_name: str, bin_width: str, metric: str):
+        print("MainController.ui_update_chromosomes :: genome_name", genome_name, "bin_width", bin_width, "metric", metric)
+        bin_width        = int(bin_width)
+
+        chromosome_names = self.genomes_chromosome_names(genome_name, bin_width, metric)
+        
+        print("MainController.ui_update_chromosomes :: chromosome_names", chromosome_names)
+        self.forms.set_chromosomes(chromosome_names)
+    
+
+    @flx.action
+    def ui_update_chromosome_info(self, genome_name: str, bin_width: str, metric: str, chromosome: str):
+        print("MainController.ui_update_chromosome_info :: genome_name", genome_name, "bin_width", bin_width, "metric", metric, "chromosome", chromosome)
+        bin_width        = int(bin_width)
+
+        chromosome_info = self.chromosome_info(genome_name, bin_width, metric, chromosome)
+
+        print("MainController.ui_update_chromosome_info :: chromosome_info", chromosome_info)
+        self.forms.set_chromosome_data(chromosome_info)
+
+    @flx.action
+    def ui_update_samples(self, genome_name: str, bin_width: str, metric: str, chromosome: str):
+        print("MainController.ui_update_samples :: genome_name", genome_name, "bin_width", bin_width, "metric", metric, "chromosome", chromosome)
+        bin_width = int(bin_width)
+
+        samples = self.genome_samples(genome_name, bin_width, metric, chromosome)
+
+        print("MainController.ui_update_samples :: samples", samples)
+        self.forms.set_samples(samples)
+    
+    @flx.action
+    def ui_update_canvas(self, genome, bin_width, metric, chromosome, sample):
+        pass
+
+    ##
+    ## Genomes
+    ##
+    def genomes_reset(self):
+        print("MainController.genomes_reset")
+        self.genomes = None
+        self.genomes.genome.reset()
+
+    def genomes_set(self, genomes: reader.Genomes):
+        print(f"MainController.genomes_set")
+        self.genomes_reset()
+        self.genomes = genomes
+
+    def genomes_update_genome(self, genome_name: str, bin_width: int, metric: str):
+        print(f"MainController.genomes_update_genome :: genome_name {genome_name} bin_width {bin_width} metric {metric}")
+        self.load_genome(genome_name, bin_width, metric)
+        # self.genome.set_genome(genome_name, genome)
+
+    def genomes_update_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str):
+        print(f"MainController.genomes_update_chromosome :: genome_name {genome_name} bin_width {bin_width} metric {metric} chromosome_name {chromosome_name}")
+        self.load_chromosome(genome_name, bin_width, metric, chromosome_name)
+        # self.chromosome.set_chromosome(chromosome)
+
+    def genomes_names(self):
+        print(f"MainController.genomes_names")
+        return self.genomes.genomes
+
+    def genomes_genome_info(self, genome_name: str):
+        print(f"MainController.genomes_genome_info")
+        return self.genomes.genome_info(genome_name)
+
+    def genomes_bin_widths(self, genome_name: str) -> typing.List[str]:
+        print(f"MainController.genomes_bin_widths")
+        return self.genomes.bin_widths(genome_name)
+
+    def genomes_bin_width_info(self, genome_name: str, bin_width: int):
+        print(f"MainController.genomes_bin_width_info")
+        return self.genomes.bin_width_info(genome_name, bin_width)
+
+    def genomes_metrics(self, genome_name: str, bin_width: int) -> typing.List[str]:
+        print(f"MainController.genomes_metrics")
+        return self.genomes.metrics(genome_name, bin_width)
+
+    def genomes_metric_info(self, genome_name: str, bin_width: int, metric: str) -> typing.List[str]:
+        print(f"MainController.genomes_metric_info")
+        return self.genomes.metric_info(genome_name, bin_width, metric)
+
+    def genomes_chromosome_names(self, genome_name: str, bin_width: int, metric: str) -> typing.List[typing.Tuple[int, str]]:
+        print(f"MainController.genomes_chromosome_names")
+        val = self.genomes.chromosome_names(genome_name, bin_width, metric)
+        val = [v[1] for v in val]
+        return val
+
+    def genomes_update(self):
+        print(f"MainController.genomes_update")
+        self.genomes.update(verbose=self.verbose)
+
+    def genomes_load_genome(self, genome_name: str, bin_width: int, metric: str) -> reader.Genome:
+        print(f"MainController.genomes_load_genome")
+        return self.genomes.load_genome(genome_name, bin_width, metric)
+
+    def genomes_load_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str) -> reader.Chromosome:
+        print(f"MainController.genomes_load_chromosome")
+        return self.genomes.load_chromosome(genome_name, bin_width, metric, chromosome_name)
+
+    def genome_samples(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str) -> typing.List[str]:
+        print(f"MainController.genome_samples")
+        chromosome = self.genomes_load_chromosome(genome_name, bin_width, metric, chromosome_name)
+        return chromosome.sample_names
+
+    def chromosome_info(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str):
+        print(f"MainController.chromosome_info")
+        chromosome = self.genomes_load_chromosome(genome_name, bin_width, metric, chromosome_name)
+        return chromosome.metadata()
 
 
 

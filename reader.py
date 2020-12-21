@@ -219,18 +219,24 @@ class Chromosome():
         return names, vals
 
     def todict(self):
-        info_names,info_values     = self._get_infos()
-        meta_names,meta_values     = self._get_meta()
-
-        data =      {k:v for k,v in zip(info_names, info_values)}
-        data.update({k:v for k,v in zip(meta_names, meta_values)})
+        data = self.info()
         
-        data['sample_names'] = self.sample_names
         data['countMatrix '] = self.matrixNp.tolist()
         data['countTotals']  = self.binsnpNp.tolist()
         data['countPairw']   = self.pairwiNp.tolist()
         data['alignments']   = self.alignmentNp.tolist()
         data['positions']    = self.positionNp.tolist()
+
+        return data
+
+    def metadata(self):
+        info_names,info_values     = self._get_infos()
+        meta_names,meta_values     = self._get_meta()
+
+        data =      {k:v for k,v in zip(info_names, info_values)}
+        data.update({k:v for k,v in zip(meta_names, meta_values)})
+
+        data['sample_names'] = self.sample_names
 
         return data
 
@@ -1283,6 +1289,9 @@ class Genome():
         return names, vals
 
     def todict(self):
+        return self.metadata()
+
+    def metadata(self):
         info_names,info_values     = self._get_infos()
         meta_names,meta_values     = self._get_meta()
 
