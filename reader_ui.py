@@ -444,7 +444,7 @@ class Forms(flx.Widget):
     def reaction_set_color(self, *ev):
         print("Forms.reaction_set_color", self.color)
         # self.reset_canvas()
-        self.root.update_canvas()
+        self.root.ui_update_canvas()
 
 
     # @flx.action
@@ -1436,6 +1436,8 @@ class MainController(flx.PyWidget):
         bin_width        = int(bin_width)
 
         chromosome_info = self.chromosome_info(genome_name, bin_width, metric, chromosome)
+
+        chromosome_info = {k:v for k,v in chromosome_info.items() if k not in ["sample_names"] and not k.startswith("type_")}
 
         print("MainController.ui_update_chromosome_info :: chromosome_info", chromosome_info)
         self.forms.set_chromosome_data(chromosome_info)
