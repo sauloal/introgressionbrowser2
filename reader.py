@@ -58,7 +58,7 @@ class Chromosome():
     """
         import reader
         chrom = reader.Chromosome(vcf_name="../data/360_merged_2.50.vcf.gz", bin_width=250_000, metric="RAW", chromosome_order=0, chromosome_name="SL2.50ch00")
-        chrom.filename
+        chrom.file_name
         chrom.exists
         chrom.load()
         chrom.matrixNp.shape
@@ -169,7 +169,7 @@ class Chromosome():
         assert metric in METRIC_VALIDS
 
     @property
-    def filename(self) -> str:
+    def file_name(self) -> str:
         basefolder = self.vcf_name + "_ib"
         dirname    = os.path.join(basefolder, str(self.bin_width), self.metric)
         if not os.path.exists(dirname):
@@ -178,7 +178,7 @@ class Chromosome():
 
     @property
     def exists(self) -> bool:
-        return os.path.exists(self.filename)
+        return os.path.exists(self.file_name)
 
     @property
     def is_loaded(self) -> bool:
@@ -706,7 +706,7 @@ class Chromosome():
             self.metric                      = metric
             self.matrixNp                    = matrix_dist
 
-        print(f"{'saving numpy array:':.<32s}{self.filename:.>30s}")
+        print(f"{'saving numpy array:':.<32s}{self.file_name:.>30s}")
         print(self)
 
         info_names, info_vals      = self._get_infos()
@@ -718,7 +718,7 @@ class Chromosome():
         meta_namesNp               = np.array(meta_names, np.unicode_)
         meta_valuesNp              = np.array(meta_vals , np.unicode_)
 
-        np.savez_compressed(self.filename,
+        np.savez_compressed(self.file_name,
             countMatrix  = self.matrixNp,
             countTotals  = self.binsnpNp,
             countPairw   = self.pairwiNp,
@@ -732,8 +732,8 @@ class Chromosome():
         )
 
     def load(self):
-        print(f"{'loading numpy array:':.<32s}{self.filename:.>30s}")
-        data                               = np.load(self.filename, mmap_mode='r', allow_pickle=False)
+        print(f"{'loading numpy array:':.<32s}{self.file_name:.>30s}")
+        data                               = np.load(self.file_name, mmap_mode='r', allow_pickle=False)
 
         self.matrixNp                      = data['countMatrix']
         self.binsnpNp                      = data['countTotals']
@@ -982,19 +982,19 @@ class Genome():
         assert self.metric in METRIC_VALIDS
 
     @property
-    def filename(self) -> str:
+    def file_name(self) -> str:
         basefolder =  self.vcf_name + "_ib"
         dirname    = os.path.join(basefolder, str(self.bin_width))
         return f"{dirname}{os.path.sep}{os.path.basename(self.vcf_name)}.npz"
 
     @property
     def exists(self) -> bool:
-        return os.path.exists(self.filename)
+        return os.path.exists(self.file_name)
 
     @property
     def loaded(self) -> bool:
         if not self.exists:
-            # print(f"genome loaded error - file does not exists {self.filename}", file=sys.stderr)
+            # print(f"genome loaded error - file does not exists {self.file_name}", file=sys.stderr)
             return False
         
         if self._chromosomes is None:
@@ -1014,7 +1014,7 @@ class Genome():
         
         for chromosome in self._chromosomes.values():
             if not chromosome.exists:
-                # print(f"genome complete error - chromosome does not exists {chromosome.filename}", file=sys.stderr)
+                # print(f"genome complete error - chromosome does not exists {chromosome.file_name}", file=sys.stderr)
                 return False
 
         return True
@@ -1150,9 +1150,9 @@ class Genome():
             )
             
             if not chromosome.exists:
-                raise IOError(f"chromosome database does not exists: {chromosome.filename}")
+                raise IOError(f"chromosome database does not exists: {chromosome.file_name}")
             else:
-                print(f"loading chromosome {chromosome_name} {chromosome.filename}")
+                print(f"loading chromosome {chromosome_name} {chromosome.file_name}")
             
             chromosome.load()
             
@@ -1199,9 +1199,9 @@ class Genome():
         if self.complete:
             return
 
-        print(f"{'loading numpy array:':.<32s}{self.filename:.>30s}")
-        # filename           = f"{self.vcf_name}.{self.chromosome_order:06d}.{self.chromosome_name}.npz"
-        data                       = np.load(self.filename, mmap_mode='r', allow_pickle=False)
+        print(f"{'loading numpy array:':.<32s}{self.file_name:.>30s}")
+        # file_name           = f"{self.vcf_name}.{self.chromosome_order:06d}.{self.chromosome_name}.npz"
+        data                       = np.load(self.file_name, mmap_mode='r', allow_pickle=False)
         
         self.sample_names          = data["sample_names"].tolist()
         self.chromosome_names      = data["chromosome_names"].tolist()
@@ -1304,7 +1304,7 @@ class Genome():
         return data
 
     def save(self):
-        print(f"{'saving numpy array:':.<32s}{self.filename:.>30s}")
+        print(f"{'saving numpy array:':.<32s}{self.file_name:.>30s}")
         print(self)
 
         sample_namesNp             = np.array(self.sample_names    , np.unicode_)
@@ -1319,7 +1319,7 @@ class Genome():
         meta_namesNp               = np.array(meta_names , np.unicode_)
         meta_valuesNp              = np.array(meta_values, np.unicode_)
 
-        np.savez_compressed(self.filename,
+        np.savez_compressed(self.file_name,
             sample_names     = sample_namesNp,
             chromosome_names = chromosome_namesNp,
             info_names       = info_namesNp,
@@ -1330,11 +1330,11 @@ class Genome():
 
     def load(self, preload=False, threads=DEFAULT_THREADS):
         if self.exists:
-            print(f"database exists {self.filename}")
+            print(f"database exists {self.file_name}")
             self._load_db(preload=preload)
 
         else:
-            print(f"database does not exists {self.filename}. reading vcf")
+            print(f"database does not exists {self.file_name}. reading vcf")
             self._processVcf(threads=threads)
 
             self.save()
@@ -1363,7 +1363,7 @@ class Genome():
             )
             
             if not chromosome.exists:
-                raise IOError(f"chromosome database file {chromosome.filename} does not exists")
+                raise IOError(f"chromosome database file {chromosome.file_name} does not exists")
 
             chromosome.load()
             
@@ -1479,7 +1479,7 @@ class Genomes():
             self.curr_chrom_name : str        = None
             self.curr_chrom      : Chromosome = None
 
-            # projects[dbname]["bin_widths"][bin_width]["metrics"][metric]
+            # projects[database_name]["bin_widths"][bin_width]["metrics"][metric]
             if genome_name   not in self.genomes:
                 raise ValueError(f"no such database {genome_name}. {','.join(self.genomes)}")
 
@@ -1490,7 +1490,7 @@ class Genomes():
                 raise ValueError(f"no such metric {metric} for database {genome_name} bin width {bin_width}: {self.metrics(genome_name, bin_width)}")
 
             # print(self.genomes[genome_name])
-            project_path = self.genome_info(genome_name)["projectpath"]
+            project_path = self.genome_info(genome_name)["project_path"]
             print("loading project_path", project_path)
 
             genome = Genome(
@@ -1499,7 +1499,7 @@ class Genomes():
                 metric    = metric
             )
 
-            print("genome.filename", genome.filename)
+            print("genome.file_name", genome.file_name)
             
             assert genome.exists
             
@@ -1531,104 +1531,104 @@ class Genomes():
 
     @staticmethod
     def listProjects(folder_name, verbose=False):
-        basepath  = os.path.abspath(folder_name)
-        filenames = list(iglob(os.path.join(basepath,"**/*.npz"), recursive=True))
-        projects  = OrderedDict()
+        basepath   = os.path.abspath(folder_name)
+        file_names = list(iglob(os.path.join(basepath,"**/*.npz"), recursive=True))
+        projects   = OrderedDict()
 
-        for filepath in filenames:
-            filedir     = filepath[len(basepath)+1:]
-            filename    = os.path.basename(filedir)
-            filefolder  = filedir[:-1*len(filename)-1]
-            dbname      = filefolder.split(os.path.sep)[0][:-3]
+        for file_path in file_names:
+            file_dir      = file_path[len(basepath)+1:]
+            file_name     = os.path.basename(file_dir)
+            file_folder   = file_dir[:-1*len(file_name)-1]
+            database_name = file_folder.split(os.path.sep)[0][:-3]
 
             for ext in ['.vcf.bgz', '.vcf.gz', '.vcf']:
-                dbname = dbname[:-1*len(ext)] if dbname.endswith(ext) else dbname
-            dbname = dbname.replace("_", " ")
+                database_name = database_name[:-1*len(ext)] if database_name.endswith(ext) else database_name
+            database_name = database_name.replace("_", " ")
 
-            datafolder, bin_width, metric   = None, None, None
+            data_folder, bin_width, metric  = None, None, None
             chromosome_pos, chromosome_name = None, None
-            folder_parts                    = filefolder.strip(os.path.sep).split(os.path.sep)
+            folder_parts                    = file_folder.strip(os.path.sep).split(os.path.sep)
             
-            if filename.startswith("ib_"): # data
+            if file_name.startswith("ib_"): # data
                 try:
-                    projectfolder                   = os.path.join(*folder_parts[:-2])
-                    assert projectfolder.endswith("_ib")
-                    projectfolder                   = projectfolder[:-3]
-                    datafolder, bin_width, metric   = folder_parts[-3:]
-                    fileparts                       = filename[3:-4].split('.')
+                    project_folder                  = os.path.join(*folder_parts[:-2])
+                    assert project_folder.endswith("_ib")
+                    project_folder                  = project_folder[:-3]
+                    data_folder, bin_width, metric  = folder_parts[-3:]
+                    fileparts                       = file_name[3:-4].split('.')
                     chromosome_pos, chromosome_name = fileparts[0], ".".join(fileparts[1:])
                     chromosome_pos = int(chromosome_pos)
                 except:
-                    print(f"invalid folder {filefolder}")
+                    print(f"invalid folder {file_folder}")
                     continue
 
             else: # root
                 try:
-                    projectfolder        = os.path.join(*folder_parts[:-1])
-                    assert projectfolder.endswith("_ib")
-                    projectfolder        = projectfolder[:-3]
-                    datafolder, bin_width = filefolder.strip(os.path.sep).split(os.path.sep)[-2:]
+                    project_folder         = os.path.join(*folder_parts[:-1])
+                    assert project_folder.endswith("_ib")
+                    project_folder         = project_folder[:-3]
+                    data_folder, bin_width = file_folder.strip(os.path.sep).split(os.path.sep)[-2:]
                 except:
-                    print(f"invalid folder {filefolder}")
+                    print(f"invalid folder {file_folder}")
                     continue
 
-            projectpath = os.path.join(basepath, projectfolder)
+            project_path = os.path.join(basepath, project_folder)
             bin_width    = int(bin_width)
-            # print(f"filepath {filepath} filedir {filedir} filename {filename} filefolder {filefolder} datafolder {datafolder} bin_width {bin_width} dbname {dbname}")
+            # print(f"file_path {file_path} file_dir {file_dir} file_name {file_name} file_folder {file_folder} data_folder {data_folder} bin_width {bin_width} database_name {database_name}")
 
-            if dbname not in projects:
-                projects[dbname] = {
-                    "dbname"       : dbname,
-                    "datafolder"   : datafolder,
-                    "projectfolder": projectfolder,
-                    "projectpath"  : projectpath,
+            if database_name not in projects:
+                projects[database_name] = {
+                    "database_name" : database_name,
+                    "data_folder"   : data_folder,
+                    "project_folder": project_folder,
+                    "project_path"  : project_path,
                     "bin_widths"    : OrderedDict()
                 }
 
-            if bin_width not in projects[dbname]["bin_widths"]:
-                projects[dbname]["bin_widths"][bin_width] = {
-                    "dbname"       : dbname,
-                    "datafolder"   : datafolder,
-                    "projectfolder": projectfolder,
-                    "projectpath"  : projectpath,
+            if bin_width not in projects[database_name]["bin_widths"]:
+                projects[database_name]["bin_widths"][bin_width] = {
+                    "database_name" : database_name,
+                    "data_folder"   : data_folder,
+                    "project_folder": project_folder,
+                    "project_path"  : project_path,
                     "bin_width"     : bin_width,
-                    "metrics"      : OrderedDict()
+                    "metrics"       : OrderedDict()
                 }
 
             if metric is None: # root
-                projects[dbname]["bin_widths"][bin_width].update({
-                    "filepath"  : filepath,
-                    "filedir"   : filedir,
-                    "filename"  : filename,
-                    "filefolder": filefolder,
+                projects[database_name]["bin_widths"][bin_width].update({
+                    "file_path"  : file_path,
+                    "file_dir"   : file_dir,
+                    "file_name"  : file_name,
+                    "file_folder": file_folder,
                 })
             
             else: #data
-                if metric not in projects[dbname]["bin_widths"][bin_width]["metrics"]:
-                    projects[dbname]["bin_widths"][bin_width]["metrics"][metric] = []
+                if metric not in projects[database_name]["bin_widths"][bin_width]["metrics"]:
+                    projects[database_name]["bin_widths"][bin_width]["metrics"][metric] = []
                 
-                projects[dbname]["bin_widths"][bin_width]["metrics"][metric].append({
-                    "filepath"       : filepath,
-                    "filedir"        : filedir,
-                    "filename"       : filename,
-                    "filefolder"     : filefolder,
-                    "projectfolder"  : projectfolder,
-                    "projectpath"    : projectpath,
-                    "datafolder"     : datafolder,
+                projects[database_name]["bin_widths"][bin_width]["metrics"][metric].append({
+                    "file_path"      : file_path,
+                    "file_dir"       : file_dir,
+                    "file_name"      : file_name,
+                    "file_folder"    : file_folder,
+                    "project_folder" : project_folder,
+                    "project_path"   : project_path,
+                    "data_folder"    : data_folder,
                     "bin_width"      : bin_width,
                     "metric"         : metric,
-                    "dbname"         : dbname,
+                    "database_name"  : database_name,
                     "chromosome_pos" : chromosome_pos,
                     "chromosome_name": chromosome_name
                 })
 
-                projects[dbname]["bin_widths"][bin_width]["metrics"][metric].sort(key=lambda v: v["chromosome_pos"])
+                projects[database_name]["bin_widths"][bin_width]["metrics"][metric].sort(key=lambda v: v["chromosome_pos"])
 
         assert len(projects) > 0
 
         if verbose:
-            for dbname, dbdata in projects.items():
-                print(f"{'database':23s}: {dbname}")
+            for database_name, dbdata in projects.items():
+                print(f"{'database':23s}: {database_name}")
                 
                 for dataname, datavalue in dbdata.items():
                     if dataname == 'bin_widths':
@@ -1910,11 +1910,11 @@ class BGzip():
 
 
 
-def openFile(filename, mode):
-    if filename.endswith('.gz'):
-        return gzip.open(filename, mode)
+def openFile(file_name, mode):
+    if file_name.endswith('.gz'):
+        return gzip.open(file_name, mode)
     else:
-        return open(filename, mode)
+        return open(file_name, mode)
 
 def calculateMatrixSize(sample_count: int) -> int:
     """

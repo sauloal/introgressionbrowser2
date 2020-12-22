@@ -109,6 +109,9 @@ class Graph(flx.CanvasWidget):
             height: 100% !important;
             overflow: scroll;
         }
+        .graph {
+            top: 35px;
+        }
     """
 
     def init(self, parent):
@@ -117,6 +120,7 @@ class Graph(flx.CanvasWidget):
         self.set_capture_wheel(False)
         # self.apply_style('overflow: scroll;')  # enable scrolling
         self.ctx = self.node.getContext('2d')
+        self.set_css_class("graph")
 
     @flx.action
     def resize(self, width: int, height: int):
@@ -369,99 +373,6 @@ class Graph(flx.CanvasWidget):
                     )
                     ctx.stroke()
             print(f"Graph :: done")
-        
-        return
-        if False:
-            tray_rows    = coord_data["tray_rows"]
-            tray_columns = coord_data["tray_columns"]
-            image_width  = coord_data["image_width"]
-            image_height = coord_data["image_height"]
-            marked_cells = coord_data["marked_cells"]
-            positions    = coord_data["positions"]
-            shadows      = coord_data["shadows"]
-
-            # print("Drawing.set_points", width, height)
-
-            # self.label.set_text(t.format(ev.pos[0], ev.pos[1], ev.buttons))
-            if any([v == -1 for v in [image_width, image_height, self.scale_factor]]):
-                print("Drawing.set_points - not set")
-                return
-
-            if positions is None:
-                print("Drawing.set_points - no positions")
-                return
-
-            scale_factor    = self.scale_factor/100
-            border          = 1
-            lineWidth       = 3
-            gapBetweenCells = 3
-
-            width_eff       = image_width  * scale_factor
-            height_eff      = image_height * scale_factor
-            ctx             = self.ctx
-
-            self.resize(width_eff + 4*border, height_eff + 4*border)
-
-            # print(f"Drawing.set_points - clearing - width {self.width} height {self.height} scale_factor {scale_factor}")
-            # print(f"Drawing.set_points - clearing - {self.width  * scale_factor} {self.height * scale_factor}")
-
-            ctx.clearRect(
-                0,
-                0,
-                width_eff  + 4*border,
-                height_eff + 4*border
-            )
-
-            if self.show_grid:
-                ctx.lineWidth   = lineWidth
-                cell_width      = width_eff  // tray_columns
-                cell_height     = height_eff // tray_rows
-                for y_num, square_y_pos in enumerate(range(0, height_eff, cell_height)):
-                    for x_num, square_x_pos in enumerate(range(0, width_eff, cell_width)):
-                        if (y_num, x_num) in marked_cells:
-                            ctx.strokeStyle = "#089000"
-                        else:
-                            ctx.strokeStyle = "#FF0000"
-
-                        ctx.beginPath()
-                        ctx.rect(
-                            square_x_pos + gapBetweenCells,
-                            square_y_pos + gapBetweenCells,
-                            cell_width   - gapBetweenCells - lineWidth//2,
-                            cell_height  - gapBetweenCells - lineWidth//2
-                        )
-                        ctx.stroke()
-
-            if self.show_shadows:
-                ctx.strokeStyle = self.shadowStrokeStyle
-                ctx.fillStyle   = self.shadowFillStyle
-
-                for pos in range(len(shadows[0])):
-                    y, x = shadows[0][pos], shadows[1][pos]
-                    # print(f"Drawing.set_points - x {x} y {y} X {x * self.scale_factor} Y {y * self.scale_factor} scale_factor {self.scale_factor} {self.strokeStyle} {self.fillStyle}")
-                    ctx.beginPath()
-                    ctx.fillRect(
-                        x * scale_factor + 1,
-                        y * scale_factor + 1,
-                        scale_factor,
-                        scale_factor
-                    )
-                    ctx.stroke()
-
-            ctx.strokeStyle = self.highlightStrokeStyle
-            ctx.fillStyle   = self.highlightFillStyle
-
-            for pos in range(len(positions[0])):
-                y, x = positions[0][pos], positions[1][pos]
-                # print(f"Drawing.set_points - x {x} y {y} X {x * self.scale_factor} Y {y * self.scale_factor} scale_factor {self.scale_factor} {self.strokeStyle} {self.fillStyle}")
-                ctx.beginPath()
-                ctx.fillRect(
-                    x * scale_factor + 1,
-                    y * scale_factor + 1,
-                    scale_factor,
-                    scale_factor
-                )
-                ctx.stroke()
 
     @flx.action
     def reset(self, zero=True):
@@ -483,56 +394,65 @@ class Graph(flx.CanvasWidget):
 class Forms(flx.Widget):
     # https://flexx.readthedocs.io/en/stable/guide/widget_basics.html
     CSS = """
+        .selector:hover {
+            height: 33%;
+        }
+        .selector {
+            position:absolute;
+            top: 5px;
+            left: 5px;
+            background-color: darkseagreen;
+            width: 99%;
+            height: 30px;
+            z-index: 1000;
+        }
+
         .form_sel {
-            background: #FFF;
+            background-color: lightgreen;
             border: 1px solid #000;
             width: 15%;
             font-size: 12px;
+            height: 25px;
+        }
+
+        .btn_download {
+            background-color: lightgreen;
+            width: 10%;
+            height: 26px;
         }
 
         .info {
             font-size: small;
         }
 
-        .selector:hover {
-            height: 25%;
-            overflow-y: scroll;
-        }
-        .selector {
-            height: 22px;
-        }
-
-        .selection_info_sp{
+        .info_selection_sp{
             width: 15%;
             display: inline-block;
         }
-        .selection_info_he{
+        .info_selection_he{
             font-weight: bold;
         }
-        .selection_info_va{
-
+        .info_selection_va{
         }
 
-        .genome_data_sp{
-            width: 30%;
+        .info_genome_sp{
+            width: 32%;
             display: inline-block;
         }
-        .genome_data_he{
+        .info_genome_he{
             font-weight: bold;
         }
-        .genome_data_va{
-
+        .info_genome_va{
         }
 
-        .chromosome_data_sp{
-            width: 30%;
+        .info_chromosome_sp{
+            width: 32%;
             display: inline-block;
         }
-        .chromosome_data_he{
+        .info_chromosome_he{
             font-weight: bold;
         }
-        .chromosome_data_va{
-
+        .info_chromosome_va{
         }
     """
 
@@ -561,8 +481,6 @@ class Forms(flx.Widget):
     colors_data      = flx.DictProp(color_maps, settable=False, doc="List of colors")
     _sel_colors      = "Select color"
 
-    # color            = color_maps[list(color_maps.keys())[0]][0]
-
 
     def _getElementById(self, eid):
         global window
@@ -587,6 +505,12 @@ class Forms(flx.Widget):
         main_div = flx.create_element('div', {"id": "main", "class": "selector"}, "") # the default is <div>
         # self.reaction
         return main_div
+
+    def _download_image(self, *ev):
+        print("_download_image")
+        # var canvas = document.getElementById("mycanvas");
+        #     var img    = canvas.toDataURL("image/png");
+        #     document.write('<img src="'+img+'"/>');
 
     def _render_dom(self):
         print("Forms._render_dom")
@@ -640,7 +564,9 @@ class Forms(flx.Widget):
             self.sel_colors_el = _cel('select', {"id": "sel_colors", "class": "form_sel", "onchange": gen_getter_and_setter("sel_colors", self.set_color)}, *colors_opts)
             els += [self.sel_colors_el]
 
-        els += [_cel('br')]
+        _download_image    = self._download_image
+        btn_download_image = _cel('button', {"class": "btn btn_download", "onclick": _download_image}, "Download")
+        els += [btn_download_image]
 
         # for k,v in [
         #         ["Genome"    , self.genome    ],
@@ -650,23 +576,23 @@ class Forms(flx.Widget):
         #         ['Sample'    , self.sample    ],
         #         ['Color'     , self.color     ],
         #     ]:
-        #     els.append(_cel('span', {'class': 'selection_info_sp'}, _cel('span', {'class': 'selection_info_he'}, k +':'), _cel('span', {'class': 'selection_info_va'}, v )))
+        #     els.append(_cel('span', {'class': 'info_selection_sp'}, _cel('span', {'class': 'info_selection_he'}, k +':'), _cel('span', {'class': 'info_selection_va'}, v )))
 
         if  self.genome_data:
             for k,v in self.genome_data.items():
                 els.append(
-                    _cel('span', {'class': 'genome_data_sp info'},
-                        _cel('span', {'class': 'genome_data_he'}, " ".join(k.split("_")).title() +':'),
-                        _cel('span', {'class': 'genome_data_va'}, str(v) )))
+                    _cel('span', {'class': 'info_genome_sp info'},
+                        _cel('span', {'class': 'info_genome_he'}, " ".join(k.split("_")).title() +':'),
+                        _cel('span', {'class': 'info_genome_va'}, str(v) )))
 
         els += [_cel('br')]
 
         if self.chromosome_data:
             for k,v in self.chromosome_data.items():
                 els.append(
-                    _cel('span', {'class': 'chromosome_data_sp info'},
-                        _cel('span', {'class': 'chromosome_data_he'}, " ".join(k.split("_")).title() +':'),
-                        _cel('span', {'class': 'chromosome_data_va'}, str(v) )))
+                    _cel('span', {'class': 'info_chromosome_sp info'},
+                        _cel('span', {'class': 'info_chromosome_he'}, " ".join(k.split("_")).title() +':'),
+                        _cel('span', {'class': 'info_chromosome_va'}, str(v) )))
 
         els += [_cel('br')]
 
@@ -706,7 +632,7 @@ class Forms(flx.Widget):
 
     @flx.action
     def reset_canvas(self):
-        pass
+        print("Forms.reset_canvas")
 
 
 
@@ -791,7 +717,7 @@ class Forms(flx.Widget):
 
     @flx.reaction('samples')
     def reaction_set_samples(self, *ev):
-        print("Forms.reaction_set_samples", JSON.stringify(self.samples))
+        print("Forms.reaction_set_samples")#, JSON.stringify(self.samples))
         self.reset_sample()
         self.reset_canvas()
         if self.samples:
@@ -806,17 +732,6 @@ class Forms(flx.Widget):
             print("SETTING COLOR", color)
             self.set_color(color)
 
-
-
-    # @flx.reaction('genome_data')
-    # def reaction_set_genome_data(self, *ev):
-    #     print("Forms.reaction_set_genome_data", JSON.stringify(self.genome_data))
-    #     pass
-
-    # @flx.reaction('chromosome_data')
-    # def reaction_set_chromosome_data(self, *ev):
-    #     print("Forms.reaction_set_chromosome_data", JSON.stringify(self.chromosome_data))
-    #     pass
 
 
     @flx.reaction('genome')
@@ -862,12 +777,14 @@ class Forms(flx.Widget):
     def reaction_set_sample(self, *ev):
         print("Forms.reaction_set_sample", self.sample)
         if self.sample != "-" and self.color != "-":
+            print("Forms.reaction_set_sample", self.sample, "UPDATING CANVAS")
             self.root.ui_update_canvas(self.genome, self.bin_width, self.metric, self.chromosome, self.sample, self.color)
 
     @flx.reaction('color')
     def reaction_set_color(self, *ev):
         print("Forms.reaction_set_color", self.color)
         if self.sample != "-" and self.color != "-":
+            print("Forms.reaction_set_color", self.sample, "UPDATING CANVAS")
             self.root.ui_update_canvas(self.genome, self.bin_width, self.metric, self.chromosome, self.sample, self.color)
 
 
@@ -955,7 +872,7 @@ class ChromosomeController(flx.PyComponent):
 
         else:
             print("ChromosomeController.update :: updating")
-            self.filename                  = self.chromosome.filename
+            self.file_name                 = self.chromosome.file_name
 
             self.vcf_name                  = self.chromosome.vcf_name
             self.bin_width                 = self.chromosome.bin_width
@@ -991,26 +908,28 @@ class ChromosomeController(flx.PyComponent):
             self.update()
 
     def set_min_val(self, min_val: float):
-        print("ChromosomeController.set_min_val")
+        print("ChromosomeController.set_min_val", min_val)
         self.min_val           = min_val
         self.cmap, self.acolor = self.gen_color()
 
     def set_max_val(self, max_val: float):
-        print("ChromosomeController.set_max_val")
+        print("ChromosomeController.set_max_val", max_val)
         self.max_val           = max_val
         self.cmap, self.acolor = self.gen_color()
 
     def set_min_max_val(self, min_val: float, max_val: float):
+        print("ChromosomeController.set_min_max_val", min_val, max_val)
         self.min_val = min_val
         self.max_val = max_val
         self.cmap, self.acolor = self.gen_color()
 
-    def set_sample_name(self, sample_name: str):
-        print("ChromosomeController.reaction_sample_name", self.sample_name)
+    def set_sample_name(self, sample_name: str, display=True):
+        print("ChromosomeController.set_sample_name", self.sample_name)
         self.sample_name = sample_name
-        self.display()
+        if display:
+            self.display()
 
-    def set_color(self, color_name=None, min_val=None, max_val=None):
+    def set_color(self, color_name=None, min_val=None, max_val=None, display=True):
         if  (
                 (color_name is not None and self.color_name != color_name) or
                 (min_val    is not None and self.min_val    != min_val   ) or
@@ -1021,6 +940,8 @@ class ChromosomeController(flx.PyComponent):
             self.max_val    = self.max_val    if max_val    is None else max_val
 
             self.cmap, self.acolor = self.gen_color()
+            if display:
+                self.display()
 
     def gen_color(self, color_name=None, min_val=None, max_val=None):
         color_name = self.color_name if color_name is None else color_name
@@ -1050,6 +971,15 @@ class ChromosomeController(flx.PyComponent):
 
     def display(self):
         print(f"ChromosomeController.display :: sample_name {self.sample_name} color_name {self.color_name}")
+
+        if self.sample_name == "-":
+            print(f"ChromosomeController.display :: sample_name {self.sample_name} color_name {self.color_name} - INVALID SAMPLE NAME")
+            return
+
+        if self.color_name == "-":
+            print(f"ChromosomeController.display :: sample_name {self.sample_name} color_name {self.color_name} - INVALID COLOR NAME")
+            return
+
         if not (
             self.chromosome      is not None and
             self.chromosome_name is not None and self.chromosome_name != "-" and self.chromosome_name != "" and
@@ -1116,7 +1046,7 @@ class ChromosomeController(flx.PyComponent):
             for col_num in range(len(imgd)):
                 col = imgd[col_num]
                 col_to_color(col)
-            
+
             col_to_color(acolord)
             # print("acolord", acolord, type(acolord))
             col_to_color(bin_cmapg)
@@ -1129,6 +1059,9 @@ class ChromosomeController(flx.PyComponent):
             # print(f"ChromosomeController.display :: imgd = {imgd}")
             # bin_names = [f"{b+1:7,d} - {b*self.bin_width:12,d}-{(b+1)*self.bin_width:12,d}" for b in range(self.bin_count)]
             bin_names = self.format_range()
+
+            print(f"ChromosomeController.display :: triggering")
+
             self.root.graph.set_points({
                 "min"            : matrix_min,
                 "max"            : matrix_max,
@@ -1154,8 +1087,8 @@ class ChromosomeController(flx.PyComponent):
                 "bin_snps"       : self.bin_snps,
                 "bin_snps_min"   : bin_snps_min,
                 "bin_snps_max"   : bin_snps_max
-
             })
+            print(f"ChromosomeController.display :: done")
 
     def format_range(self):
         def human_format(num, suffixes=[['bp',0], ['Kbp',0], ['Mbp',2], ['Gbp',3], ['Tbp',4], ['Pbp',5]]):
@@ -1248,7 +1181,10 @@ class MainController(flx.PyWidget):
         genome_info   = self.genomes_genome_info(genome_name)
         genome_info_f = {k:v for k,v in genome_info.items() if isinstance(v, (int, float, str))}
 
-        print("MainController.ui_update_genome_info :: genome_info", genome_info_f)
+        # print(list(genome_info_f.keys()))
+        genome_info_f.update({k:os.path.basename(genome_info_f[k]) for k in ["project_path"]})
+
+        # print("MainController.ui_update_genome_info :: genome_info", genome_info_f)
         self.forms.set_genome_data(genome_info_f)
 
     @flx.action
@@ -1278,20 +1214,23 @@ class MainController(flx.PyWidget):
 
         chromosome_names = self.genomes_chromosome_names(genome_name, bin_width, metric)
         
-        print("MainController.ui_update_chromosomes :: chromosome_names", chromosome_names)
+        # print("MainController.ui_update_chromosomes :: chromosome_names", chromosome_names)
         self.forms.set_chromosomes(chromosome_names)
     
     @flx.action
     def ui_update_chromosome_info(self, genome_name: str, bin_width: str, metric: str, chromosome: str):
         print("MainController.ui_update_chromosome_info :: genome_name", genome_name, "bin_width", bin_width, "metric", metric, "chromosome", chromosome)
-        bin_width        = int(bin_width)
+        bin_width         = int(bin_width)
 
-        chromosome_info = self.chromosome_info(genome_name, bin_width, metric, chromosome)
+        chromosome_info   = self.chromosome_info(genome_name, bin_width, metric, chromosome)
 
-        chromosome_info = {k:v for k,v in chromosome_info.items() if k not in ["sample_names"] and not k.startswith("type_")}
+        chromosome_info_f = {k:v for k,v in chromosome_info.items() if k not in ["sample_names"] and not k.startswith("type_")}
+        chromosome_info_f.update({k:os.path.basename(chromosome_info_f[k]) for k in ["vcf_name"]})
 
-        print("MainController.ui_update_chromosome_info :: chromosome_info", chromosome_info)
-        self.forms.set_chromosome_data(chromosome_info)
+        # print(list(chromosome_info_f.keys()))
+
+        # print("MainController.ui_update_chromosome_info :: chromosome_info", chromosome_info_f)
+        self.forms.set_chromosome_data(chromosome_info_f)
 
     @flx.action
     def ui_update_samples(self, genome_name: str, bin_width: str, metric: str, chromosome: str):
@@ -1300,7 +1239,7 @@ class MainController(flx.PyWidget):
 
         samples = self.genome_samples(genome_name, bin_width, metric, chromosome)
 
-        print("MainController.ui_update_samples :: samples", samples)
+        # print("MainController.ui_update_samples :: samples", samples)
         self.forms.set_samples(samples)
     
     @flx.action
@@ -1309,8 +1248,8 @@ class MainController(flx.PyWidget):
         bin_width = int(bin_width)
 
         self.genomes_load_chromosome(genome_name, bin_width, metric, chromosome)
-        self.chromosome.set_sample_name(sample_name)
-        self.chromosome.set_color(color_name)
+        self.chromosome.set_color(color_name, display=False)
+        self.chromosome.set_sample_name(sample_name, display=False)
         self.chromosome.display()
 
     ##
