@@ -198,7 +198,7 @@ class Graph(flx.CanvasWidget):
         font_size              = 12
         font_height            = font_size
         font_width             = font_size * 0.48 #https://www.lifewire.com/aspect-ratio-table-common-fonts-3467385
-        header_lines           = 7 + 1
+        header_lines           = 7 + 2
 
         print(f"Graph.set_points :: coord_data :: font_size              {font_size}")
         print(f"Graph.set_points :: coord_data :: font_height            {font_height}")
@@ -266,9 +266,9 @@ class Graph(flx.CanvasWidget):
             ctx.translate(start_x + font_height, max_bin_name_offset_h)
             ctx.rotate(-0.5*math.pi)
             for bin_pos, bin_name in enumerate(binnames):
-                text_x = 2.5 * font_height
+                text_x = 3 * font_height
                 text_y = (bin_pos * font_height)
-                ctx.fillText(bin_snps[bin_pos] + " " + bin_name, text_x + (1.5*font_height), text_y)
+                ctx.fillText(bin_name, text_x + (2.5*font_height), text_y)
 
                 ctx.save()
                 color_pos       = bin_snps_color[bin_pos]
@@ -277,7 +277,7 @@ class Graph(flx.CanvasWidget):
                 ctx.fillStyle   = color
                 ctx.beginPath()
                 ctx.fillRect(
-                    text_x,
+                    text_x + font_height,
                     text_y - font_height,
                     font_height,
                     font_height
@@ -1180,7 +1180,7 @@ class ChromosomeController(flx.PyComponent):
         mbs += (mbs-1) // 3
         msn += (msn-1) // 3
 
-        fmt = f"{{:{mbs},d}}|{{:{msn},d}}|{{:>{mst}s}}-{{:>{men}s}}"
+        fmt = f"{{:{mbs},d}} | {{:{msn},d}} | {{:>{mst}s}}-{{:>{men}s}}"
         print("FMT", fmt)
 
         for (b,n,s,e) in d:

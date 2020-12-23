@@ -1,42 +1,64 @@
 #!/usr/bin/env python3
 
+from operator import le
 import os
 import sys
 import typing
 import json
 import gzip
 import struct
+import math
 import multiprocessing as mp
 
 from glob import iglob
 from collections import OrderedDict
 
 import numpy as np
-from scipy.spatial.distance import pdist, squareform
-
+import scipy.cluster.hierarchy as sch
+from   scipy.cluster          import hierarchy
+from   scipy.spatial.distance import pdist, squareform
 
 DEBUG                         = False
 DEBUG_MAX_BIN                 = 10
+DEBUG_MAX_CHROM               = 2
 DEFAULT_BIN_SIZE              = 250_000
 DEFAULT_SAVE_ALIGNMENT        = True
-DEFAULT_METRIC                = 'jaccard'
+DEFAULT_METRIC                = 'linkage+complete+jaccard'
 DEFAULT_DISTANCE_TYPE_MATRIX  = np.float32
 DEFAULT_COUNTER_TYPE_MATRIX   = np.uint16
 DEFAULT_COUNTER_TYPE_PAIRWISE = np.uint32
 DEFAULT_POSITIONS_TYPE        = np.uint32
-DEFAULT_THREADS               = mp.cpu_count()
+DEFAULT_THREADS               = math.ceil(mp.cpu_count() * 0.8)
+
+DEFAULT_THREADS               = 1 if DEFAULT_THREADS == 0 else DEFAULT_THREADS
 
 # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.pdist.html
 METRIC_RAW_NAME = 'RAW'
-METRIC_VALIDS                 = [
+METRIC_PDIST    = [
     'braycurtis' , 'canberra'  , 'chebyshev'    , 'cityblock'     ,
     'correlation', 'cosine'    , 'dice'         , 'euclidean'     ,
     'hamming'    , 'jaccard'   , 'jensenshannon', 'kulsinski'     ,
     'mahalanobis', 'matching'  , 'minkowski'    , 'rogerstanimoto',
     'russellrao' , 'seuclidean', 'sokalmichener', 'sokalsneath'   ,
-    'sqeuclidean', 'yule'      ,
-    METRIC_RAW_NAME
+    'sqeuclidean', 'yule'
 ]
+METRIC_HIERARCHICAL_METHODS = [
+    "single"  , #(y) Perform single/min/nearest linkage on the condensed distance matrix y.
+    "complete", #(y) Perform complete/max/farthest point linkage on a condensed distance matrix.
+    "average" , #(y) Perform average/UPGMA linkage on a condensed distance matrix.
+    "weighted", #(y) Perform weighted/WPGMA linkage on the condensed distance matrix.
+    "centroid", #(y) Perform centroid/UPGMC linkage.
+    "median"  , #(y) Perform median/WPGMC linkage.
+    "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
+]
+METRIC_HIERARCHICAL = []
+for method in METRIC_HIERARCHICAL_METHODS:
+    for metric in METRIC_PDIST:
+        METRIC_HIERARCHICAL.append(f"linkage+{method}+{metric}")
+        # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
+
+# METRIC_VALIDS = METRIC_PDIST + METRIC_HIERARCHICAL + [METRIC_RAW_NAME]
+METRIC_VALIDS = METRIC_HIERARCHICAL + [METRIC_RAW_NAME]
 
 
 MatrixType           = typing.OrderedDict[typing.Tuple[str,str],int]
@@ -164,9 +186,13 @@ class Chromosome():
         self.alignmentNp                  : np.ndarray      = None
         self.positionNp                   : np.ndarray      = None
 
+        self.chrom_dist                   : np.ndarray      = None
+        self.leaf_ordering                : np.ndarray      = None
+        self.optimal_leaf_ordering        : np.ndarray      = None
+
         self._is_loaded                   : bool            = False
 
-        assert metric in METRIC_VALIDS
+        assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
 
     @property
     def file_name(self) -> str:
@@ -194,11 +220,14 @@ class Chromosome():
 
     def _get_infos(self):
         names  = [
-            "bin_count"                  , "bin_min"                      , "bin_max"                      , "bin_width"               ,
-            "bin_snps_min"               , "bin_snps_max"                 ,
-            "chromosome_snps"            , "chromosome_order"             , "chromosome_first_position"    , "chromosome_last_position",
-            "matrix_size"                , "sample_count"                 , 
-            "type_matrix_counter_max_val", "type_matrix_distance_max_val" , "type_pairwise_counter_max_val", "type_positions_max_val"
+            "bin_count"                    , "bin_min"                      ,
+            "bin_max"                      , "bin_width"                    ,
+            "bin_snps_min"                 , "bin_snps_max"                 ,
+            "chromosome_snps"              , "chromosome_order"             ,
+            "chromosome_first_position"    , "chromosome_last_position"     ,
+            "matrix_size"                  , "sample_count"                 ,
+            "type_matrix_counter_max_val"  , "type_matrix_distance_max_val" ,
+            "type_pairwise_counter_max_val", "type_positions_max_val"
         ]
         vals = [getattr(self,n) for n in names]
 
@@ -699,12 +728,20 @@ class Chromosome():
 
         assert self.is_loaded, "chromosome not loaded"
 
-        if metric is not None:
-            assert metric in METRIC_VALIDS
+        if metric is None:
+            self.chrom_dist                  = None
+            self.leaf_ordering               = np.arange(start=0, stop=self.sample_count, step=1)
+            self.optimal_leaf_ordering       = np.arange(start=0, stop=self.sample_count, step=1)
+
+        else:
+            assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
             print(f"converting chromosome {self.chromosome_name} to {metric}")
-            matrix_dist                      = self.convert_matrix_to_distance(metric)
+            matrix_dist, chrom_dist, leaf_ordering, optimal_leaf_ordering = self.convert_matrix_to_distance(metric)
             self.metric                      = metric
             self.matrixNp                    = matrix_dist
+            self.chrom_dist                  = chrom_dist
+            self.leaf_ordering               = leaf_ordering
+            self.optimal_leaf_ordering       = optimal_leaf_ordering
 
         print(f"{'saving numpy array:':.<32s}{self.file_name:.>30s}")
         print(self)
@@ -713,22 +750,25 @@ class Chromosome():
         meta_names, meta_vals      = self._get_meta()
 
         sample_namesNp             = np.array(self.sample_names, np.unicode_)
-        info_namesNp               = np.array(info_names, np.unicode_)
-        info_valuesNp              = np.array(info_vals , np.int64   )
-        meta_namesNp               = np.array(meta_names, np.unicode_)
-        meta_valuesNp              = np.array(meta_vals , np.unicode_)
+        info_namesNp               = np.array(info_names       , np.unicode_)
+        info_valuesNp              = np.array(info_vals        , np.int64   )
+        meta_namesNp               = np.array(meta_names       , np.unicode_)
+        meta_valuesNp              = np.array(meta_vals        , np.unicode_)
 
         np.savez_compressed(self.file_name,
-            countMatrix  = self.matrixNp,
-            countTotals  = self.binsnpNp,
-            countPairw   = self.pairwiNp,
-            alignments   = self.alignmentNp,
-            positions    = self.positionNp,
-            sample_names = sample_namesNp,
-            info_names   = info_namesNp,
-            info_values  = info_valuesNp,
-            meta_names   = meta_namesNp,
-            meta_values  = meta_valuesNp
+            countMatrix           = self.matrixNp,
+            chrom_dist            = self.chrom_dist,
+            leaf_ordering         = self.leaf_ordering,
+            optimal_leaf_ordering = self.optimal_leaf_ordering,
+            countTotals           = self.binsnpNp,
+            countPairw            = self.pairwiNp,
+            alignments            = self.alignmentNp,
+            positions             = self.positionNp,
+            sample_names          = sample_namesNp,
+            info_names            = info_namesNp,
+            info_values           = info_valuesNp,
+            meta_names            = meta_namesNp,
+            meta_values           = meta_valuesNp
         )
 
     def load(self):
@@ -736,6 +776,10 @@ class Chromosome():
         data                               = np.load(self.file_name, mmap_mode='r', allow_pickle=False)
 
         self.matrixNp                      = data['countMatrix']
+        self.chrom_dist                    = data['chrom_dist']
+        self.leaf_ordering                 = data['leaf_ordering']
+        self.optimal_leaf_ordering         = data['optimal_leaf_ordering']
+
         self.binsnpNp                      = data['countTotals']
         self.pairwiNp                      = data['countPairw']
         self.alignmentNp                   = data['alignments']
@@ -768,6 +812,7 @@ class Chromosome():
 
         self.matrix_size                   = info_dict["matrix_size"]
         assert self.matrix_size == self.matrixNp.shape[1]
+        assert self.matrix_size == self.chrom_dist.shape[0]
 
         self.bin_count                     = info_dict["bin_count"]
         self.bin_min                       = info_dict["bin_min"]
@@ -796,7 +841,7 @@ class Chromosome():
 
         metric                             = meta_dict["metric"]
         assert self.metric == metric
-        assert metric in METRIC_VALIDS
+        assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
         self.metric = metric
 
         type_matrix_counter_name           = meta_dict["type_matrix_counter_name"]
@@ -832,6 +877,9 @@ class Chromosome():
         self.sample_names                  = sample_names
         assert len(self.sample_names) == self.sample_count
         assert self.sample_count      == self.pairwiNp.shape[1]
+        assert self.sample_count      == self.leaf_ordering.shape[0]
+        assert self.sample_count      == self.optimal_leaf_ordering.shape[0]
+
         if self.alignmentNp.shape[0] != 0:
             assert self.sample_count  == self.alignmentNp.shape[1]
         
@@ -840,7 +888,7 @@ class Chromosome():
         print(self)
 
     def convert_matrix_to_distance(self, metric: str):
-        assert metric in METRIC_VALIDS
+        assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
         assert self.is_loaded
 
         print(f"chromosome {self.chromosome_name} - calculating distance {metric}")
@@ -848,9 +896,50 @@ class Chromosome():
 
         for binNum in range(self.bin_count):
             # print(f"chromosome {self.chromosome_name} - calculating distance {metric} - bin {binNum}")
-            dist[binNum,:] = matrixDistance(self.matrixNp[binNum,:], metric=metric, dtype=self.type_matrix_distance)
+            bdist, _, _    = matrixDistance(self.matrixNp[binNum,:], metric=metric, dtype=self.type_matrix_distance, do_clustering=False)
+            dist[binNum,:] = bdist
         
-        return dist
+        chrom_sum = self.matrixNp.sum(axis=0)
+        chrom_dist, leaf_ordering, optimal_leaf_ordering = matrixDistance(chrom_sum, metric=metric, dtype=self.type_matrix_distance, do_clustering=True)
+
+        # print("chrom_sum")
+        # print("self.matrixNp.shape", self.matrixNp.shape)
+        # print("chrom_sum.shape", chrom_sum.shape)
+        # print("chrom_sum", chrom_sum)
+        # print("cdist", cdist)
+        # print("corder", corder)
+        # print("cborder", cborder)
+
+        """
+            import numpy as np
+            a=np.array(
+                [
+                    [
+                        [1,1,1],
+                        [2,2,2]
+                    ],
+                    [
+                        [3,3,3],
+                        [4,4,4]
+                    ]
+                ])
+            a.shape
+            a
+            a.sum(axis=0)
+            a.sum(axis=0).shape
+
+            b=np.array(
+                [
+                    [1,1,1,2,2,2],
+                    [3,3,3,4,4,4]
+                ])
+            b.shape
+            b
+            b.sum(axis=0)
+            b.sum(axis=0).shape
+        """
+
+        return dist, chrom_dist, leaf_ordering, optimal_leaf_ordering
 
     def matrix_sample(self, sample_name: str, metric=None) -> np.ndarray:
         """
@@ -891,7 +980,7 @@ class Chromosome():
         sample_pos = self._sample_pos(sample_name)
         return self.matrix_bin_square(binNum)[sample_pos,:]
 
-    def matrix_bin_dist(self, binNum: int, metric: str = DEFAULT_METRIC, dtype: np.dtype = DEFAULT_DISTANCE_TYPE_MATRIX) -> np.ndarray:
+    def matrix_bin_dist(self, binNum: int, metric: str = DEFAULT_METRIC, dtype: np.dtype = DEFAULT_DISTANCE_TYPE_MATRIX) -> typing.Tuple[np.ndarray,np.ndarray,np.ndarray]:
         """
             https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.pdist.html
 
@@ -921,9 +1010,10 @@ class Chromosome():
         matrix_bin = self.matrix_bin(binNum)
 
         if metric == METRIC_RAW_NAME:
-            return matrix_bin
+            return matrix_bin, np.arange(start=0, stop=self.sample_count, step=1), np.arange(start=0, stop=self.sample_count, step=1)
         else:
-            return matrixDistance(matrix_bin, metric=metric, dtype=dtype)
+            dist, _, _ = matrixDistance(matrix_bin, metric=metric, dtype=dtype, do_clustering=False)
+            return dist
 
     def matrix_bin_dist_square(self, binNum: int, metric: str = DEFAULT_METRIC) -> np.ndarray:
         return squareform(self.matrix_bin_dist(binNum, metric=metric))
@@ -1048,6 +1138,9 @@ class Genome():
         results = []
         with mp.Pool(processes=threads) as pool:
             for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
+                if DEBUG:
+                    if chromosome_order >= DEBUG_MAX_CHROM:
+                        break
                 chromosome = Chromosome(
                     vcf_name              = self.vcf_name,
                     bin_width             = self.bin_width,
@@ -1455,7 +1548,7 @@ class Genomes():
         return list(self.bin_width_info(genome_name, bin_width)["metrics"].keys())
 
     def metric_info(self, genome_name: str, bin_width: int, metric: str) -> typing.Dict[str, typing.Any]:
-        assert metric      in self.metrics(genome_name, bin_width)
+        assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
         return self.bin_width_info(genome_name, bin_width)["metrics"][metric]
 
     def chromosome_names(self, genome_name: str, bin_width: int, metric: str) -> typing.List[typing.Tuple[int, str]]:
@@ -2110,24 +2203,146 @@ def triangleToMatrix(tri_array) -> np.ndarray:
     
     return M
 
-def matrixDistance(matrix: np.ndarray, metric=DEFAULT_METRIC, dtype=np.float64) -> np.ndarray:
+def matrixDistance(matrix: np.ndarray, metric=DEFAULT_METRIC, dtype=np.float64, do_clustering=False) -> typing.Union[np.ndarray,np.ndarray,np.ndarray]:
     """
         import numpy as np
         from scipy.spatial.distance import pdist, squareform
         ln = np.array([0,1,2,3,4,5,6,7,8,9])
         1/(1 + squareform(pdist(squareform(ln), metric=DEFAULT_METRIC)))
     """
-    # print("matrixDistance", matrix.shape, matrix)
+
+    assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
+
+    # METRIC_PDIST
+    # METRIC_HIERARCHICAL
+    #     "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
+    # METRIC_HIERARCHICAL += ["linkage+" + d for d in METRIC_PDIST]
+    #     # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
+
     if   len(matrix.shape) == 1:
-        # return 1.0/(1.0 + squareform(pdist(squareform(matrix), metric=metric)))
-        return (1.0/(1.0 + pdist(squareform(matrix), metric=metric))).astype(dtype)
-
+        square_matrix = squareform(matrix, force='tomatrix')
+        linear_matrix = matrix
     elif len(matrix.shape) == 2:
-        # return 1.0/(1.0 + squareform(pdist(matrix, metric=metric)))
-        return 1.0/(1.0 + pdist(matrix, metric=metric)).astype(dtype)
-
+        square_matrix = matrix
+        linear_matrix = squareform(matrix, force='tovector')
     else:
         raise ValueError("only 1 and 2 dimension arrays can be used")
+
+    # METRIC_HIERARCHICAL_METHODS = [
+    #     "single"  , #(y) Perform single/min/nearest linkage on the condensed distance matrix y.
+    #     "complete", #(y) Perform complete/max/farthest point linkage on a condensed distance matrix.
+    #     "average" , #(y) Perform average/UPGMA linkage on a condensed distance matrix.
+    #     "weighted", #(y) Perform weighted/WPGMA linkage on the condensed distance matrix.
+    #     "centroid", #(y) Perform centroid/UPGMC linkage.
+    #     "median"  , #(y) Perform median/WPGMC linkage.
+    #     "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
+    # ]
+    # METRIC_HIERARCHICAL = []
+    # for method in METRIC_HIERARCHICAL_METHODS:
+    #     for metric in METRIC_PDIST:
+    #         METRIC_HIERARCHICAL.append(f"linkage+{method}+{metric}") 
+    #         # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
+
+    """
+        #https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.optimal_leaf_ordering.html
+        #https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.leaves_list.html
+        #https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html#scipy.cluster.hierarchy.linkage
+        #https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.pdist.html
+        #https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.squareform.html
+        from scipy.cluster.hierarchy import ward, dendrogram, leaves_list, optimal_leaf_ordering
+        from scipy.spatial.distance import pdist
+        from matplotlib import pyplot as plt
+        from scipy.spatial.distance import pdist
+        import numpy as np
+
+        X = np.array([
+            [0, 0], [0, 1], [1, 0],
+            [0, 4], [0, 3], [1, 4],
+            [4, 0], [3, 0], [4, 1],
+            [4, 4], [3, 4], [4, 3]])
+
+        Z = ward(pdist(X))
+
+        # array([[ 0.        ,  1.        ,  1.        ,  2.        ],
+        #         [ 3.        ,  4.        ,  1.        ,  2.        ],
+        #         [ 6.        ,  7.        ,  1.        ,  2.        ],
+        #         [ 9.        , 10.        ,  1.        ,  2.        ],
+        #         [ 2.        , 12.        ,  1.29099445,  3.        ],
+        #         [ 5.        , 13.        ,  1.29099445,  3.        ],
+        #         [ 8.        , 14.        ,  1.29099445,  3.        ],
+        #         [11.        , 15.        ,  1.29099445,  3.        ],
+        #         [16.        , 17.        ,  5.77350269,  6.        ],
+        #         [18.        , 19.        ,  5.77350269,  6.        ],
+        #         [20.        , 21.        ,  8.16496581, 12.        ]])
+
+        ll = leaves_list(Z)
+        ll
+        #array([ 2,  0,  1,  5,  3,  4,  8,  6,  7, 11,  9, 10], dtype=int32)
+
+        X[ll]
+
+        olo = leaves_list(optimal_leaf_ordering(Z, X))
+        olo
+        #array([ 2,  0,  1,  4,  3,  5, 10,  9, 11,  8,  6,  7], dtype=int32)
+
+        X[olo]
+
+
+        import numpy as np
+        import reader
+
+        Y = np.array([
+            0,
+            1, 2,
+            3, 4, 5,
+            6, 7, 8, 9
+            ])
+
+        reader.matrixDistance(Y, metric="linkage+single+correlation")
+
+        W = np.array([
+            [0, 0, 1, 2, 3],
+            [0, 0, 4, 5, 6],
+            [1, 4, 0, 7, 8],
+            [2, 5, 7, 0, 9],
+            [3, 6, 8, 9, 0]])
+        W
+
+        reader.matrixDistance(W, metric="linkage+single+correlation")
+        ## W
+        # array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        ## W square
+        # array([[0, 0, 1, 2, 3],
+        #        [0, 0, 4, 5, 6],
+        #        [1, 4, 0, 7, 8],
+        #        [2, 5, 7, 0, 9],
+        #        [3, 6, 8, 9, 0]]),
+        ## dist
+        # array([0.95153884, 0.80596842, 0.60113787, 0.4406498 , 0.70175439,
+        #        0.59349787, 0.49410044, 0.50988627, 0.44102284, 0.39822119])
+        ## linkage
+        # array([[0.        , 1.        , 0.05092925, 2.        ],
+        #        [2.        , 5.        , 0.2407434 , 3.        ],
+        #        [3.        , 6.        , 0.66351191, 4.        ],
+        #        [4.        , 7.        , 1.02388002, 5.        ]]),
+        ## leaf ordering
+        # array([4, 3, 2, 0, 1], dtype=int32),
+        ## optimal leaf ordering
+        # array([4, 2, 0, 1, 3], dtype=int32))
+    """
+
+    _, clustering_method, clustering_metric = metric.split("+")
+
+    dist                  = (1.0/(1.0 + pdist(square_matrix, metric=clustering_metric))).astype(dtype)
+    leaf_ordering         = np.arange(start=0, stop=square_matrix.shape[0], step=1)
+    optimal_leaf_ordering = np.arange(start=0, stop=square_matrix.shape[0], step=1)
+
+    if do_clustering:
+        linkage               = sch.linkage(dist, method=clustering_method, optimal_ordering=False)
+        leaf_ordering         = hierarchy.leaves_list(linkage)
+        optimal_leaf_ordering = hierarchy.leaves_list(hierarchy.optimal_leaf_ordering(linkage, linear_matrix))
+
+    return dist, leaf_ordering, optimal_leaf_ordering
 
 def genDiffMatrix(alphabet: typing.List[str]=list(range(4))) -> MatrixType:
     """
@@ -2240,8 +2455,8 @@ def main():
         type_pairwise_counter = DEFAULT_COUNTER_TYPE_PAIRWISE,
         type_positions        = DEFAULT_POSITIONS_TYPE
     )
-    genome.load(threads=6)
-    # genome.load(threads=DEFAULT_THREADS if not DEBUG else 1)
+    # genome.load(threads=6)
+    genome.load(threads=DEFAULT_THREADS if not DEBUG else 1)
 
 
 if __name__ == "__main__":
