@@ -19,7 +19,7 @@ from pscript import RawJS
 import reader
 
 DEBUG       = True
-
+MIN_WIDTH   = 500
 
 color_maps = {
     'Perceptually Uniform Sequential': [
@@ -225,6 +225,8 @@ class Graph(flx.CanvasWidget):
 
         height_eff             = start_y + num_samples * font_height + font_height
         width_eff              = start_x + num_bins    * font_height + font_height
+        if width_eff < MIN_WIDTH:
+            width_eff = MIN_WIDTH
         print(f"Graph.set_points :: coord_data :: height_eff             {height_eff}")
         print(f"Graph.set_points :: coord_data :: width_eff              {width_eff}")
 
@@ -514,12 +516,14 @@ class Forms(flx.Widget):
     metrics          = flx.ListProp(  [] , settable=True, doc="List of metrics")
     chromosomes      = flx.ListProp(  [] , settable=True, doc="List of chromosomes")
     samples          = flx.ListProp(  [] , settable=True, doc="List of samples")
+    orders           = flx.ListProp(  [] , settable=True, doc="List of orders")
 
     genome           = flx.StringProp("-", settable=True, doc="Genome name")
     bin_width        = flx.StringProp("-", settable=True, doc="Bin Width name")
     metric           = flx.StringProp("-", settable=True, doc="Metric name")
     chromosome       = flx.StringProp("-", settable=True, doc="Genome name")
     sample           = flx.StringProp("-", settable=True, doc="Sample name")
+    order            = flx.StringProp("-", settable=True, doc="Order name")
 
     genome_data      = flx.DictProp(  {} , settable=True, doc="Genome info")
     chromosome_data  = flx.DictProp(  {} , settable=True, doc="Chromosome info")
@@ -831,14 +835,14 @@ class Forms(flx.Widget):
         print("Forms.reaction_set_sample", self.sample)
         if self.sample != "-" and self.color != "-":
             print("Forms.reaction_set_sample", self.sample, "UPDATING CANVAS")
-            self.root.ui_update_canvas(self.genome, self.bin_width, self.metric, self.chromosome, self.sample, self.color)
+            self.root.ui_update_canvas(self.genome, self.bin_width, self.metric, self.chromosome, self.sample, self.color, self.order)
 
     @flx.reaction('color')
     def reaction_set_color(self, *ev):
         print("Forms.reaction_set_color", self.color)
         if self.sample != "-" and self.color != "-":
             print("Forms.reaction_set_color", self.sample, "UPDATING CANVAS")
-            self.root.ui_update_canvas(self.genome, self.bin_width, self.metric, self.chromosome, self.sample, self.color)
+            self.root.ui_update_canvas(self.genome, self.bin_width, self.metric, self.chromosome, self.sample, self.color, self.order)
 
 
 
@@ -854,6 +858,7 @@ class ChromosomeController(flx.PyComponent):
         self.chromosome_order          : int = -1
         self.chromosome_name           : str = "-"
         self.metric                    : str = "-"
+        self.order                     : str = "-"
 
         self.matrix_size               : int = -1
         self.bin_max                   : int = -1
@@ -980,7 +985,7 @@ class ChromosomeController(flx.PyComponent):
         print("ChromosomeController.set_sample_name", self.sample_name)
         self.sample_name = sample_name
         if display:
-            self.display()
+            self.display(self.order)
 
     def set_color(self, color_name=None, min_val=None, max_val=None, display=True):
         if  (
@@ -994,13 +999,16 @@ class ChromosomeController(flx.PyComponent):
 
             self.cmap, self.acolor = self.gen_color()
             if display:
-                self.display()
+                self.display(self.order)
 
     def gen_color(self, color_name=None, min_val=None, max_val=None):
         color_name = self.color_name if color_name is None else color_name
         min_val    = self.min_val    if min_val    is None else min_val
         max_val    = self.max_val    if max_val    is None else max_val
         val_ran    = (max_val-min_val)/self.num_vals
+        # print("min_val", min_val)
+        # print("max_val", max_val)
+        # print("val_ran", val_ran)
         _, _, cmap = get_color_maps(
             color_name,
             min_val = min_val,
@@ -1011,6 +1019,7 @@ class ChromosomeController(flx.PyComponent):
             under   = self.color_under
         )
         arange = np.arange(min_val, max_val, val_ran)
+        # print("arange", arange)
         acolor = cmap(arange)
         # print("min_val ", min_val)
         # print("max_val ", max_val)
@@ -1022,7 +1031,7 @@ class ChromosomeController(flx.PyComponent):
         # self.acolor = acolor
         return cmap, acolor
 
-    def display(self):
+    def display(self, order):
         print(f"ChromosomeController.display :: sample_name {self.sample_name} color_name {self.color_name}")
 
         if self.sample_name == "-":
@@ -1066,13 +1075,33 @@ class ChromosomeController(flx.PyComponent):
             bin_acolor = bin_acolor.tolist()
             # print("bin_cmapg", bin_cmapg)
 
+
+            order = 'optimal_leaf_ordering'
+            print(f"ChromosomeController.display :: reordering: {order}")
+            orderer = None
+            if   order is None or order == '-':
+                orderer = range(len(self.sample_names))
+            elif order == 'leaf_ordering':
+                orderer = self.chromosome.leaf_ordering
+            elif order == 'optimal_leaf_ordering':
+                orderer = self.chromosome.optimal_leaf_ordering
+            else:
+                raise ValueError(f"no such orderer {orderer}")
+
+            matrix       = matrix[:,orderer]
+            sample_names = [self.sample_names[s] for s in orderer]
+            # print("orderer", orderer)
+            # print("self.sample_names", self.sample_names)
+            # print("sample_names", sample_names)
+
+
             # print(f"ChromosomeController.display :: matrix = {matrix}")
             print(f"ChromosomeController.display :: matrix max = {matrix_max}")
             print(f"ChromosomeController.display :: matrix min = {matrix_min}")
-            self.set_min_val(matrix_min)
-            self.set_max_val(matrix_max)
-
+            assert matrix_max >= matrix_min
+            self.set_min_max_val(matrix_min, matrix_max)
             self.set_color(min_val=matrix_min, max_val=matrix_max)
+
             img        = self.cmap(matrix)
 
             # print(f"ChromosomeController.display :: img = {img}")
@@ -1115,6 +1144,7 @@ class ChromosomeController(flx.PyComponent):
             bin_names = self.format_range()
             # bin_names = [f"{self.bin_snps[p]:7d}|{b}" for p, b in enumerate(bin_names)]
 
+
             print(f"ChromosomeController.display :: triggering")
 
             self.root.graph.set_points({
@@ -1122,7 +1152,7 @@ class ChromosomeController(flx.PyComponent):
                 "max"            : matrix_max,
                 "shape"          : img.shape,
                 "data"           : imgd,
-                "samplenames"    : self.sample_names,
+                "samplenames"    : sample_names,
                 "binwidth"       : self.bin_width,
                 "binnames"       : bin_names,
                 "chromosome_name": self.chromosome_name,
@@ -1167,21 +1197,21 @@ class ChromosomeController(flx.PyComponent):
             e      = human_format(e)
             n      = self.bin_snps[b]
             d     [b] = [b,n,s,e]
-            bs    [b] = math.log10(b     ) if b != 0 else 1
-            snps  [b] = math.log10(n     ) if n != 0 else 1
+            bs    [b] = math.log10(b) if b != 0 else 1
+            snps  [b] = math.log10(n) if n != 0 else 1
             starts[b] = len(s)
             ends  [b] = len(e)
         
         mbs = math.ceil(max(bs    ))
+        msn = math.ceil(max(snps  ))
         mst = math.ceil(max(starts))
         men = math.ceil(max(ends  ))
-        msn = math.ceil(max(snps  ))
 
-        mbs += (mbs-1) // 3
-        msn += (msn-1) // 3
+        mbs += mbs // 3 + 1
+        msn += msn // 3 + 1
 
         fmt = f"{{:{mbs},d}} | {{:{msn},d}} | {{:>{mst}s}}-{{:>{men}s}}"
-        print("FMT", fmt)
+        # print("FMT", fmt)
 
         for (b,n,s,e) in d:
             res[b] = fmt.format(b,n,s,e)
@@ -1330,14 +1360,14 @@ class MainController(flx.PyWidget):
         self.forms.set_samples(samples)
     
     @flx.action
-    def ui_update_canvas(self, genome_name: str, bin_width: str, metric: str, chromosome: str, sample_name: str, color_name: str):
-        print("MainController.ui_update_canvas :: genome_name", genome_name, "bin_width", bin_width, "metric", metric, "chromosome", chromosome, "sample_name", sample_name, "color_name", color_name)
+    def ui_update_canvas(self, genome_name: str, bin_width: str, metric: str, chromosome: str, sample_name: str, color_name: str, order: str):
+        print("MainController.ui_update_canvas :: genome_name", genome_name, "bin_width", bin_width, "metric", metric, "chromosome", chromosome, "sample_name", sample_name, "color_name", color_name, "order", order)
         bin_width = int(bin_width)
 
         self.genomes_load_chromosome(genome_name, bin_width, metric, chromosome)
         self.chromosome.set_color(color_name, display=False)
         self.chromosome.set_sample_name(sample_name, display=False)
-        self.chromosome.display()
+        self.chromosome.display(order)
 
     ##
     ## Genomes

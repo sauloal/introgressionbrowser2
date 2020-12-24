@@ -18,12 +18,12 @@ import scipy.cluster.hierarchy as sch
 from   scipy.cluster          import hierarchy
 from   scipy.spatial.distance import pdist, squareform
 
-DEBUG                         = False
+DEBUG                         = True
 DEBUG_MAX_BIN                 = 10
 DEBUG_MAX_CHROM               = 2
 DEFAULT_BIN_SIZE              = 250_000
 DEFAULT_SAVE_ALIGNMENT        = True
-DEFAULT_METRIC                = 'linkage+complete+jaccard'
+DEFAULT_METRIC                = 'linkage+average+jaccard'
 DEFAULT_DISTANCE_TYPE_MATRIX  = np.float32
 DEFAULT_COUNTER_TYPE_MATRIX   = np.uint16
 DEFAULT_COUNTER_TYPE_PAIRWISE = np.uint32
@@ -729,7 +729,7 @@ class Chromosome():
         assert self.is_loaded, "chromosome not loaded"
 
         if metric is None:
-            self.chrom_dist                  = None
+            self.chrom_dist                  = np.zeros(self.matrix_size, self.type_matrix_counter)
             self.leaf_ordering               = np.arange(start=0, stop=self.sample_count, step=1)
             self.optimal_leaf_ordering       = np.arange(start=0, stop=self.sample_count, step=1)
 
