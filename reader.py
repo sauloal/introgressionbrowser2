@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from genericpath import exists
 from operator import le
 import os
 import sys
@@ -10,27 +11,31 @@ import struct
 import math
 import multiprocessing as mp
 
-from glob import iglob
+from glob        import iglob
 from collections import OrderedDict
 
-import numpy as np
+import numpy                   as np
 import scipy.cluster.hierarchy as sch
-from   scipy.cluster          import hierarchy
-from   scipy.spatial.distance import pdist, squareform
+from   scipy.cluster           import hierarchy
+from   scipy.spatial.distance  import pdist, squareform
 
-DEBUG                         = True
-DEBUG_MAX_BIN                 = 10
+NUM_CPUS = math.ceil(mp.cpu_count() * 0.8)
+
+DEBUG                         = False
+DEBUG_MAX_BIN                 = 15
 DEBUG_MAX_CHROM               = 2
 DEFAULT_BIN_SIZE              = 250_000
 DEFAULT_SAVE_ALIGNMENT        = True
-DEFAULT_METRIC                = 'linkage+average+jaccard'
+DEFAULT_METRIC                = 'average_jaccard'
+DEFAULT_METRIC                = 'complete_jaccard'
 DEFAULT_DISTANCE_TYPE_MATRIX  = np.float32
 DEFAULT_COUNTER_TYPE_MATRIX   = np.uint16
 DEFAULT_COUNTER_TYPE_PAIRWISE = np.uint32
 DEFAULT_POSITIONS_TYPE        = np.uint32
-DEFAULT_THREADS               = math.ceil(mp.cpu_count() * 0.8)
 
-DEFAULT_THREADS               = 1 if DEFAULT_THREADS == 0 else DEFAULT_THREADS
+DEFAULT_THREADS               = NUM_CPUS
+DEFAULT_THREADS               = NUM_CPUS - 1 if DEFAULT_THREADS == NUM_CPUS else DEFAULT_THREADS
+DEFAULT_THREADS               = 1            if DEFAULT_THREADS == 0        else DEFAULT_THREADS
 
 # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.pdist.html
 METRIC_RAW_NAME = 'RAW'
@@ -54,7 +59,9 @@ METRIC_HIERARCHICAL_METHODS = [
 METRIC_HIERARCHICAL = []
 for method in METRIC_HIERARCHICAL_METHODS:
     for metric in METRIC_PDIST:
-        METRIC_HIERARCHICAL.append(f"linkage+{method}+{metric}")
+        if method in ['centroid', 'median', 'ward'] and metric != 'euclidean':
+            continue
+        METRIC_HIERARCHICAL.append(f"{method}_{metric}")
         # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
 
 # METRIC_VALIDS = METRIC_PDIST + METRIC_HIERARCHICAL + [METRIC_RAW_NAME]
@@ -894,14 +901,14 @@ class Chromosome():
         print(f"chromosome {self.chromosome_name} - calculating distance {metric}")
         dist = np.zeros((self.matrixNp.shape[0], self.matrixNp.shape[1]), dtype=self.type_matrix_distance)
 
+        chrom_sum = self.matrixNp.sum(axis=0)
+        chrom_dist, leaf_ordering, optimal_leaf_ordering = matrixDistance(chrom_sum, metric=metric, dtype=self.type_matrix_distance, do_clustering=True)
+
         for binNum in range(self.bin_count):
             # print(f"chromosome {self.chromosome_name} - calculating distance {metric} - bin {binNum}")
             bdist, _, _    = matrixDistance(self.matrixNp[binNum,:], metric=metric, dtype=self.type_matrix_distance, do_clustering=False)
             dist[binNum,:] = bdist
         
-        chrom_sum = self.matrixNp.sum(axis=0)
-        chrom_dist, leaf_ordering, optimal_leaf_ordering = matrixDistance(chrom_sum, metric=metric, dtype=self.type_matrix_distance, do_clustering=True)
-
         # print("chrom_sum")
         # print("self.matrixNp.shape", self.matrixNp.shape)
         # print("chrom_sum.shape", chrom_sum.shape)
@@ -1109,6 +1116,41 @@ class Genome():
 
         return True
 
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        res = []
+        for k in [
+            "vcf_name",
+            "bin_width",
+            "metric",
+            "chromosome_names",
+            "chromosome_count",
+            "genome_bins",
+            "genome_snps",
+            "sample_names",
+            "sample_count",
+            "type_matrix_counter",
+            "type_pairwise_counter",
+            "type_positions",
+        ]:
+
+            v = getattr(self, k)
+            s = None
+            if   isinstance(v, int):
+                s = f"{v:,d}"
+            elif isinstance(v, str):
+                s = f"{v:s}"
+            elif isinstance(v, list):
+                s = f"{len(v):,d}"
+            elif isinstance(v, np.ndarray):
+                s = f"{str(v.shape):s}"
+            else:
+                s = f"{str(v):s}"
+            res.append(f"  {k:.<30s}{s:.>30s}")
+        return "\n".join(res)
+
     def _processVcf(self, threads=DEFAULT_THREADS):
         self._chromosomes     = OrderedDict()
         self.chromosome_names = []
@@ -1253,42 +1295,7 @@ class Genome():
         
         print("all chromosomes loaded")
 
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        res = []
-        for k in [
-            "vcf_name",
-            "bin_width",
-            "metric",
-            "chromosome_names",
-            "chromosome_count",
-            "genome_bins",
-            "genome_snps",
-            "sample_names",
-            "sample_count",
-            "type_matrix_counter",
-            "type_pairwise_counter",
-            "type_positions",
-        ]:
-
-            v = getattr(self, k)
-            s = None
-            if   isinstance(v, int):
-                s = f"{v:,d}"
-            elif isinstance(v, str):
-                s = f"{v:s}"
-            elif isinstance(v, list):
-                s = f"{len(v):,d}"
-            elif isinstance(v, np.ndarray):
-                s = f"{str(v.shape):s}"
-            else:
-                s = f"{str(v):s}"
-            res.append(f"  {k:.<30s}{s:.>30s}")
-        return "\n".join(res)
-
-    def _load_db(self, preload=False):
+    def _load_db(self, preload=False, create_if_not_exists=False):
         if self.complete:
             return
 
@@ -1296,13 +1303,13 @@ class Genome():
         # file_name           = f"{self.vcf_name}.{self.chromosome_order:06d}.{self.chromosome_name}.npz"
         data                       = np.load(self.file_name, mmap_mode='r', allow_pickle=False)
         
-        self.sample_names          = data["sample_names"].tolist()
+        self.sample_names          = data["sample_names"    ].tolist()
         self.chromosome_names      = data["chromosome_names"].tolist()
 
-        info_namesNp               = data['info_names']
+        info_namesNp               = data['info_names' ]
         info_valuesNp              = data['info_values']
 
-        meta_namesNp               = data['meta_names']
+        meta_namesNp               = data['meta_names' ]
         meta_valuesNp              = data['meta_values']
 
         info_names                 = info_namesNp.tolist()
@@ -1319,41 +1326,76 @@ class Genome():
         vcf_name                   = meta_dict["vcf_name"]
         assert os.path.basename(vcf_name) == os.path.basename(self.vcf_name)
 
-        type_matrix_counter_name   = meta_dict["type_matrix_counter_name"]
-        type_matrix_distance_name  = meta_dict["type_matrix_distance_name"]
+        type_matrix_counter_name   = meta_dict["type_matrix_counter_name"  ]
+        type_matrix_distance_name  = meta_dict["type_matrix_distance_name" ]
         type_pairwise_counter_name = meta_dict["type_pairwise_counter_name"]
-        type_positions_name        = meta_dict["type_positions_name"]
+        type_positions_name        = meta_dict["type_positions_name"       ]
 
-        self.type_matrix_counter   = getattr(np, type_matrix_counter_name)
-        self.type_matrix_distance  = getattr(np, type_matrix_distance_name)
+        self.type_matrix_counter   = getattr(np, type_matrix_counter_name  )
+        self.type_matrix_distance  = getattr(np, type_matrix_distance_name )
         self.type_pairwise_counter = getattr(np, type_pairwise_counter_name)
-        self.type_positions        = getattr(np, type_positions_name)
+        self.type_positions        = getattr(np, type_positions_name       )
 
-        self.bin_width             = info_dict["bin_width"]
+        self.bin_width             = info_dict["bin_width"       ]
         self.chromosome_count      = info_dict["chromosome_count"]
-        self.sample_count          = info_dict["sample_count"]
-        self.genome_bins           = info_dict["genome_bins"]
-        self.genome_snps           = info_dict["genome_snps"]
+        self.sample_count          = info_dict["sample_count"    ]
+        self.genome_bins           = info_dict["genome_bins"     ]
+        self.genome_snps           = info_dict["genome_snps"     ]
 
         assert self.chromosome_count == len(self.chromosome_names)
-        assert self.sample_count     == len(self.sample_names)
+        assert self.sample_count     == len(self.sample_names    )
 
         print(self)
 
         self._chromosomes = OrderedDict()
 
-        if preload:
-            chromosome_bins   = 0
-            chromosome_snps   = 0
-            
-            for chromosome_name in self.chromosome_names:
-                chromosome       = self.get_chromosome(chromosome_name)
+        chromosome_bins   = 0
+        chromosome_snps   = 0
+        
+        for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
+            chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
 
+            if DEBUG:
+                if chromosome_order >= DEBUG_MAX_CHROM:
+                    break
+
+            if chromosome_exists:
+                print(f"  Chromosome {chromosome_name} exists. {chromosome.file_name}. skipping")
+            else:
+                if create_if_not_exists:
+                    print(f"  Chromosome {chromosome_name} does not exists. {chromosome.file_name}. converting")
+                    self._convert_chromosome(chromosome_name)
+                    chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+                    assert chromosome_exists
+                else:
+                    raise ValueError(f"Chromosome {chromosome_name} does not exists. {chromosome.file_name}")
+
+            if preload:
+                if not chromosome_loaded:
+                    chromosome = self.get_chromosome(chromosome_name)
+                
                 chromosome_bins += chromosome.bin_count
                 chromosome_snps += chromosome.chromosome_snps
 
+        if preload:
             assert self.genome_bins == chromosome_bins, f"self.genome_bins {self.genome_bins} == {chromosome_bins} chromosome_bins"
             assert self.genome_snps == chromosome_snps, f"self.genome_snps {self.genome_snps} == {chromosome_snps} chromosome_snps"
+
+    def _convert_chromosome(self, chromosome_name):
+        if self.metric == METRIC_RAW_NAME:
+            return
+        
+        chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+        chromosome.metric = METRIC_RAW_NAME
+
+        if not chromosome.exists:
+            raise ValueError(f"chromosome {chromosome.chromosome_name} does not exists. {chromosome.file_name}")
+
+        chromosome.load()
+        chromosome.save(self.metric)
+
+        chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+        assert chromosome_exists
 
     def _get_infos(self):
         names  = ["bin_width"   , "chromosome_count"   , "sample_count"   , "genome_bins"   , "genome_snps"   ]
@@ -1396,50 +1438,20 @@ class Genome():
 
         return data
 
-    def save(self):
-        print(f"{'saving numpy array:':.<32s}{self.file_name:.>30s}")
-        print(self)
-
-        sample_namesNp             = np.array(self.sample_names    , np.unicode_)
-        chromosome_namesNp         = np.array(self.chromosome_names, np.unicode_)
-
-        info_names,info_values     = self._get_infos()
-        meta_names,meta_values     = self._get_meta()
-
-        info_namesNp               = np.array(info_names , np.unicode_)
-        info_valuesNp              = np.array(info_values, np.int64   )
-
-        meta_namesNp               = np.array(meta_names , np.unicode_)
-        meta_valuesNp              = np.array(meta_values, np.unicode_)
-
-        np.savez_compressed(self.file_name,
-            sample_names     = sample_namesNp,
-            chromosome_names = chromosome_namesNp,
-            info_names       = info_namesNp,
-            info_values      = info_valuesNp,
-            meta_names       = meta_namesNp,
-            meta_values      = meta_valuesNp
-        )
-
-    def load(self, preload=False, threads=DEFAULT_THREADS):
-        if self.exists:
-            print(f"database exists {self.file_name}")
-            self._load_db(preload=preload)
-
-        else:
-            print(f"database does not exists {self.file_name}. reading vcf")
-            self._processVcf(threads=threads)
-
-            self.save()
-
-            if not self.complete:
-                raise IOError("not complete. not able to load the database")
-
-    def get_chromosome(self, chromosome_name: str) -> Chromosome:
+    def check_chromosome(self, chromosome_name: str) -> typing.Tuple[bool,bool,typing.Union[None, Chromosome]]:
         # chromosome_position = self.chromosome_names.index(chromosome_name)
         assert chromosome_name in self.chromosome_names, f"invalid chromosome name {chromosome_name}: {','.join(self.chromosome_names)}"
-        
-        if chromosome_name not in self._chromosomes:
+
+        chromosome_exists = False
+        chromosome_loaded = False
+        chromosome_inst   = None
+
+        if chromosome_name in self._chromosomes:
+            chromosome_exists = True
+            chromosome_loaded = True
+            chromosome_inst   = self._chromosomes[chromosome_name]
+
+        else:
             chromosome_order = self.chromosome_names.index(chromosome_name)
             chromosome       = Chromosome(
                 vcf_name              = self.vcf_name,
@@ -1455,14 +1467,25 @@ class Genome():
                 type_positions        = self.type_positions 
             )
             
-            if not chromosome.exists:
-                raise IOError(f"chromosome database file {chromosome.file_name} does not exists")
+            chromosome_inst   = chromosome
+            if chromosome.exists:
+                chromosome_exists = True
+                chromosome_loaded = False
 
+        return chromosome_exists, chromosome_loaded, chromosome_inst
+
+    def get_chromosome(self, chromosome_name: str) -> Chromosome:
+        chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+
+        if not chromosome_exists:
+            raise IOError(f"chromosome database file {chromosome.file_name} does not exists")
+
+        if not chromosome_loaded:
             chromosome.load()
             
             assert os.path.basename(chromosome.vcf_name) == os.path.basename(self.vcf_name)
             assert chromosome.bin_width                  == self.bin_width
-            assert chromosome.chromosome_order           == chromosome_order
+            assert chromosome.chromosome_order           == chromosome.chromosome_order
             assert chromosome.chromosome_name            == chromosome_name
             assert chromosome.metric                     == self.metric
             assert chromosome.sample_names               == self.sample_names
@@ -1474,6 +1497,60 @@ class Genome():
             self._chromosomes[chromosome_name] = chromosome
 
         return self._chromosomes[chromosome_name]
+
+    def save_chromosomes(self):
+        for chromosome_name in self.chromosome_names:
+            chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+            if chromosome_exists:
+                print(f"chromosome {chromosome_name} already exists: {chromosome.file_name}. skipping")
+            else:
+                print(f"chromosome {chromosome_name} does not exists: {chromosome.file_name}. creating")
+                self._convert_chromosome(chromosome_name)
+
+    def save(self):
+        print(f"{'saving numpy array:':.<32s}{self.file_name:.>30s}")
+        print(self)
+
+        self.save_chromosomes()
+
+        if self.exists:
+            print(f"filename {self.file_name} already exists. skipping")
+
+        else:
+            sample_namesNp             = np.array(self.sample_names    , np.unicode_)
+            chromosome_namesNp         = np.array(self.chromosome_names, np.unicode_)
+
+            info_names,info_values     = self._get_infos()
+            meta_names,meta_values     = self._get_meta()
+
+            info_namesNp               = np.array(info_names , np.unicode_)
+            info_valuesNp              = np.array(info_values, np.int64   )
+
+            meta_namesNp               = np.array(meta_names , np.unicode_)
+            meta_valuesNp              = np.array(meta_values, np.unicode_)
+
+            np.savez_compressed(self.file_name,
+                sample_names     = sample_namesNp,
+                chromosome_names = chromosome_namesNp,
+                info_names       = info_namesNp,
+                info_values      = info_valuesNp,
+                meta_names       = meta_namesNp,
+                meta_values      = meta_valuesNp
+            )
+
+    def load(self, preload=False, create_if_not_exists=False, threads=DEFAULT_THREADS):
+        if self.exists:
+            print(f"database exists {self.file_name}")
+            self._load_db(preload=preload, create_if_not_exists=create_if_not_exists)
+
+        else:
+            print(f"database does not exists {self.file_name}. reading vcf")
+            self._processVcf(threads=threads)
+
+            self.save()
+
+            if not self.complete:
+                raise IOError("not complete. not able to load the database")
 
 
 
@@ -1559,7 +1636,7 @@ class Genomes():
     def update(self, verbose=False):
         self._genomes = Genomes.listProjects(self.folder_name, verbose=verbose)
 
-    def load_genome(self, genome_name: str, bin_width: int, metric: str) -> Genome:
+    def load_genome(self, genome_name: str, bin_width: int, metric: str, preload: bool = False, create_if_not_exists: bool = False) -> Genome:
         if not (
                 genome_name == self.curr_genome_name and
                 bin_width   == self.curr_genome_binw and
@@ -1598,7 +1675,7 @@ class Genomes():
             
             # print(genome)
             
-            genome.load()
+            genome.load(preload=preload, create_if_not_exists=create_if_not_exists)
 
             assert genome.loaded
             assert genome.complete
@@ -2211,37 +2288,22 @@ def matrixDistance(matrix: np.ndarray, metric=DEFAULT_METRIC, dtype=np.float64, 
         1/(1 + squareform(pdist(squareform(ln), metric=DEFAULT_METRIC)))
     """
 
-    assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
-
-    # METRIC_PDIST
-    # METRIC_HIERARCHICAL
-    #     "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
-    # METRIC_HIERARCHICAL += ["linkage+" + d for d in METRIC_PDIST]
-    #     # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
-
-    if   len(matrix.shape) == 1:
-        square_matrix = squareform(matrix, force='tomatrix')
-        linear_matrix = matrix
-    elif len(matrix.shape) == 2:
-        square_matrix = matrix
-        linear_matrix = squareform(matrix, force='tovector')
-    else:
-        raise ValueError("only 1 and 2 dimension arrays can be used")
-
-    # METRIC_HIERARCHICAL_METHODS = [
-    #     "single"  , #(y) Perform single/min/nearest linkage on the condensed distance matrix y.
-    #     "complete", #(y) Perform complete/max/farthest point linkage on a condensed distance matrix.
-    #     "average" , #(y) Perform average/UPGMA linkage on a condensed distance matrix.
-    #     "weighted", #(y) Perform weighted/WPGMA linkage on the condensed distance matrix.
-    #     "centroid", #(y) Perform centroid/UPGMC linkage.
-    #     "median"  , #(y) Perform median/WPGMC linkage.
-    #     "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
-    # ]
-    # METRIC_HIERARCHICAL = []
-    # for method in METRIC_HIERARCHICAL_METHODS:
-    #     for metric in METRIC_PDIST:
-    #         METRIC_HIERARCHICAL.append(f"linkage+{method}+{metric}") 
-    #         # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
+    """
+        METRIC_HIERARCHICAL_METHODS = [
+            "single"  , #(y) Perform single/min/nearest linkage on the condensed distance matrix y.
+            "complete", #(y) Perform complete/max/farthest point linkage on a condensed distance matrix.
+            "average" , #(y) Perform average/UPGMA linkage on a condensed distance matrix.
+            "weighted", #(y) Perform weighted/WPGMA linkage on the condensed distance matrix.
+            "centroid", #(y) Perform centroid/UPGMC linkage.
+            "median"  , #(y) Perform median/WPGMC linkage.
+            "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
+        ]
+        METRIC_HIERARCHICAL = []
+        for method in METRIC_HIERARCHICAL_METHODS:
+            for metric in METRIC_PDIST:
+                METRIC_HIERARCHICAL.append(f"linkage+{method}+{metric}") 
+                # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
+    """
 
     """
         #https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.optimal_leaf_ordering.html
@@ -2331,18 +2393,39 @@ def matrixDistance(matrix: np.ndarray, metric=DEFAULT_METRIC, dtype=np.float64, 
         # array([4, 2, 0, 1, 3], dtype=int32))
     """
 
-    _, clustering_method, clustering_metric = metric.split("+")
+    assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
 
-    dist                  = (1.0/(1.0 + pdist(square_matrix, metric=clustering_metric))).astype(dtype)
+    # METRIC_PDIST
+    # METRIC_HIERARCHICAL
+    #     "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
+    # METRIC_HIERARCHICAL += ["linkage+" + d for d in METRIC_PDIST]
+    #     # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
+
+    if   len(matrix.shape) == 1:
+        square_matrix = squareform(matrix, force='tomatrix')
+        linear_matrix = matrix
+    elif len(matrix.shape) == 2:
+        square_matrix = matrix
+        linear_matrix = squareform(matrix, force='tovector')
+    else:
+        raise ValueError("only 1 and 2 dimension arrays can be used")
+
+    clustering_method, clustering_metric = metric.split("_")
+
+    # dist                  = (1.0/(1.0 + pdist(square_matrix, metric=clustering_metric))).astype(dtype)
+    dist                  = pdist(square_matrix, metric=clustering_metric)
     leaf_ordering         = np.arange(start=0, stop=square_matrix.shape[0], step=1)
     optimal_leaf_ordering = np.arange(start=0, stop=square_matrix.shape[0], step=1)
+
+    # print(f"matrixDistance matrix.shape {matrix.shape}")
+    # print(dist.tolist())
 
     if do_clustering:
         linkage               = sch.linkage(dist, method=clustering_method, optimal_ordering=False)
         leaf_ordering         = hierarchy.leaves_list(linkage)
         optimal_leaf_ordering = hierarchy.leaves_list(hierarchy.optimal_leaf_ordering(linkage, linear_matrix))
 
-    return dist, leaf_ordering, optimal_leaf_ordering
+    return dist.astype(dtype), leaf_ordering, optimal_leaf_ordering
 
 def genDiffMatrix(alphabet: typing.List[str]=list(range(4))) -> MatrixType:
     """
@@ -2455,8 +2538,10 @@ def main():
         type_pairwise_counter = DEFAULT_COUNTER_TYPE_PAIRWISE,
         type_positions        = DEFAULT_POSITIONS_TYPE
     )
-    # genome.load(threads=6)
-    genome.load(threads=DEFAULT_THREADS if not DEBUG else 1)
+    create_if_not_exists = True
+    # genome.load(create_if_not_exists=create_if_not_exists, threads=6)
+    print("DEFAULT_THREADS", DEFAULT_THREADS)
+    genome.load(create_if_not_exists=create_if_not_exists, threads=DEFAULT_THREADS if not DEBUG else 1)
 
 
 if __name__ == "__main__":
