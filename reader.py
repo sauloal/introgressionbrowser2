@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-from genericpath import exists
-from operator import le
 import os
 import sys
 import typing
@@ -9,6 +7,7 @@ import json
 import gzip
 import struct
 import math
+import argparse
 import multiprocessing as mp
 
 from glob        import iglob
@@ -19,15 +18,17 @@ import scipy.cluster.hierarchy as sch
 from   scipy.cluster           import hierarchy
 from   scipy.spatial.distance  import pdist, squareform
 
-NUM_CPUS = math.ceil(mp.cpu_count() * 0.8)
+NUM_CPUS    = math.ceil(mp.cpu_count() * 0.8)
+__name      = "iBrowser"
+__version__ = "3.0"
 
-DEBUG                         = False
+DEBUG                         = True
 DEBUG_MAX_BIN                 = 15
 DEBUG_MAX_CHROM               = 2
 DEFAULT_BIN_SIZE              = 250_000
 DEFAULT_SAVE_ALIGNMENT        = True
 DEFAULT_METRIC                = 'average_jaccard'
-DEFAULT_METRIC                = 'complete_jaccard'
+# DEFAULT_METRIC                = 'complete_jaccard'
 DEFAULT_DISTANCE_TYPE_MATRIX  = np.float32
 DEFAULT_COUNTER_TYPE_MATRIX   = np.uint16
 DEFAULT_COUNTER_TYPE_PAIRWISE = np.uint32
@@ -80,7 +81,7 @@ TriangleIndexType    = typing.OrderedDict[typing.Tuple[int,int], int]
 IUPACType            = typing.Dict[typing.FrozenSet[str], str]
 SampleNamesType      = typing.List[str]
 ChromosomeNamesType  = typing.List[str]
-ChromosomesType      = typing.OrderedDict[str, "Chromosome"]
+ChromosomesType      = typing.OrderedDict[str, typing.OrderedDict[str, "Chromosome"]]
 
 
 class Chromosome():
@@ -254,28 +255,6 @@ class Chromosome():
 
         return names, vals
 
-    def todict(self):
-        data = self.info()
-        
-        data['countMatrix '] = self.matrixNp.tolist()
-        data['countTotals']  = self.binsnpNp.tolist()
-        data['countPairw']   = self.pairwiNp.tolist()
-        data['alignments']   = self.alignmentNp.tolist()
-        data['positions']    = self.positionNp.tolist()
-
-        return data
-
-    def metadata(self):
-        info_names,info_values     = self._get_infos()
-        meta_names,meta_values     = self._get_meta()
-
-        data =      {k:v for k,v in zip(info_names, info_values)}
-        data.update({k:v for k,v in zip(meta_names, meta_values)})
-
-        data['sample_names'] = self.sample_names
-
-        return data
-
     def _sample_pos(self, sample_name: str):
         return self.sample_names.index(sample_name)
 
@@ -331,19 +310,41 @@ class Chromosome():
             res.append(f"  {k:.<30s}{s:.>30s}")
         return "\n".join(res)
 
+    def todict(self):
+        data = self.info()
+
+        data['countMatrix '] = self.matrixNp.tolist()
+        data['countTotals']  = self.binsnpNp.tolist()
+        data['countPairw']   = self.pairwiNp.tolist()
+        data['alignments']   = self.alignmentNp.tolist()
+        data['positions']    = self.positionNp.tolist()
+
+        return data
+
+    def metadata(self):
+        info_names,info_values     = self._get_infos()
+        meta_names,meta_values     = self._get_meta()
+
+        data =      {k:v for k,v in zip(info_names, info_values)}
+        data.update({k:v for k,v in zip(meta_names, meta_values)})
+
+        data['sample_names'] = self.sample_names
+
+        return data
+
     @staticmethod
     def _processVcf_read_header(vcf_name: str) -> typing.Tuple[SampleNamesType, int, int, TriangleIndexType]:
         with openFile(vcf_name, 'rt') as fhd:
             for line in fhd:
                 line = line.strip()
-                
+
                 if len(line) <= 2:
                     continue
 
                 if line[:2] == "##":
                     # print("header", line)
                     continue
-                
+
                 if line[0] == "#":
                     # print("title", line)
                     cols         = line[1:].split("\t")
@@ -356,6 +357,7 @@ class Chromosome():
                     print(f"num samples  {sample_count:12,d}")
                     print(f"matrix_size  {matrix_size :12,d}")
                     print(f"indexes      {len(indexes):12,d}")
+
                     return sample_names, sample_count, matrix_size, indexes
 
                 else:
@@ -412,11 +414,11 @@ class Chromosome():
             assert len(samples) == sample_count
             
             if len(ref) != 1:
-                print('H')
+                # print('H')
                 continue
 
             if any([len(a) > 1 for a in alts]):
-                print('h')
+                # print('h')
                 continue
 
             if binNum not in chromosome_matrix:
@@ -735,7 +737,7 @@ class Chromosome():
 
         assert self.is_loaded, "chromosome not loaded"
 
-        if metric is None:
+        if metric is None or metric == METRIC_RAW_NAME:
             self.chrom_dist                  = np.zeros(self.matrix_size, self.type_matrix_counter)
             self.leaf_ordering               = np.arange(start=0, stop=self.sample_count, step=1)
             self.optimal_leaf_ordering       = np.arange(start=0, stop=self.sample_count, step=1)
@@ -1049,12 +1051,13 @@ class Genome():
             type_matrix_counter   : np.dtype            = DEFAULT_COUNTER_TYPE_MATRIX,
             type_matrix_distance  : np.dtype            = DEFAULT_DISTANCE_TYPE_MATRIX,
             type_pairwise_counter : np.dtype            = DEFAULT_COUNTER_TYPE_PAIRWISE,
-            type_positions        : np.dtype            = DEFAULT_POSITIONS_TYPE
+            type_positions        : np.dtype            = DEFAULT_POSITIONS_TYPE,
+            rename_dict           : typing.Union[typing.OrderedDict, None] = None
         ):
 
         self.vcf_name             : str                 = vcf_name
         self.bin_width            : int                 = bin_width
-        self.metric               : str                 = metric
+        self._metric              : str                 = metric
 
         self._diff_matrix         : MatrixType          = diff_matrix
         self._IUPAC               : IUPACType           = IUPAC
@@ -1064,6 +1067,7 @@ class Genome():
         self.type_matrix_distance : np.dtype            = type_matrix_distance
         self.type_pairwise_counter: np.dtype            = type_pairwise_counter
         self.type_positions       : np.dtype            = type_positions
+        self.rename_dict          : typing.Union[typing.OrderedDict, None] = rename_dict
 
         self.sample_names         : SampleNamesType     = None
         self.sample_count         : int                 = None
@@ -1076,7 +1080,7 @@ class Genome():
 
         self._chromosomes         : ChromosomesType     = None
 
-        assert self.metric in METRIC_VALIDS
+        assert self._metric in METRIC_VALIDS
 
     @property
     def file_name(self) -> str:
@@ -1109,10 +1113,11 @@ class Genome():
             # print("genome complete error - not loaded", file=sys.stderr)
             return False
         
-        for chromosome in self._chromosomes.values():
-            if not chromosome.exists:
-                # print(f"genome complete error - chromosome does not exists {chromosome.file_name}", file=sys.stderr)
-                return False
+        for _, metrics in self._chromosomes.items():
+            for _, chromosome in metrics.items():
+                if not chromosome.exists:
+                    # print(f"genome complete error - chromosome does not exists {chromosome.file_name}", file=sys.stderr)
+                    return False
 
         return True
 
@@ -1124,7 +1129,7 @@ class Genome():
         for k in [
             "vcf_name",
             "bin_width",
-            "metric",
+            "_metric",
             "chromosome_names",
             "chromosome_count",
             "genome_bins",
@@ -1151,7 +1156,7 @@ class Genome():
             res.append(f"  {k:.<30s}{s:.>30s}")
         return "\n".join(res)
 
-    def _processVcf(self, threads=DEFAULT_THREADS):
+    def _processVcf(self, threads: int = DEFAULT_THREADS):
         self._chromosomes     = OrderedDict()
         self.chromosome_names = []
         self.chromosome_count = 0
@@ -1164,9 +1169,15 @@ class Genome():
         if self._diff_matrix is None:
             self._diff_matrix = genDiffMatrix()
 
-        assert os.path.exists(self.vcf_name)
+        assert os.path.exists(self.vcf_name), f"vcf file {self.vcf_name} does not exists"
 
         sample_names, sample_count, matrix_size, indexes = Chromosome._processVcf_read_header(self.vcf_name)
+        if self.rename_dict is not None:
+            for sample_pos, sample_name in enumerate(sample_names):
+                new_sample_name = self.rename_dict.get(sample_name, sample_name)
+                print(f"renaming sample {sample_pos} '{sample_name}' -> '{new_sample_name}'{' *' if new_sample_name != sample_name else ''}")
+                sample_names[sample_pos] = new_sample_name
+
         self.sample_names     = sample_names
         self.sample_count     = sample_count
 
@@ -1177,23 +1188,12 @@ class Genome():
 
         mp.set_start_method('spawn')
 
-        results = []
+        results = [None] * len(self.chromosome_names)
         with mp.Pool(processes=threads) as pool:
             for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
                 if DEBUG:
                     if chromosome_order >= DEBUG_MAX_CHROM:
                         break
-                chromosome = Chromosome(
-                    vcf_name              = self.vcf_name,
-                    bin_width             = self.bin_width,
-                    metric                = self.metric,
-                    chromosome_order      = chromosome_order,
-                    chromosome_name       = chromosome_name,
-                )
-
-                if chromosome.exists:
-                    print(f"chromosome {chromosome_name} already exists")
-                    continue
 
                 chromosome = Chromosome(
                     vcf_name              = self.vcf_name,
@@ -1205,17 +1205,7 @@ class Genome():
 
                 if chromosome.exists:
                     print(f"chromosome {chromosome_name} already exists as raw - calculating distance")
-                    res = pool.apply_async(
-                        Chromosome._calculateDistance,
-                        [],
-                        {
-                            "vcf_name"              : self.vcf_name,
-                            "bin_width"             : self.bin_width,
-                            "metric"                : self.metric,
-                            "chromosome_order"      : chromosome_order,
-                            "chromosome_name"       : chromosome_name,
-                        }
-                    )
+                    continue
                 else:
                     print(f"reading chromosome {chromosome_name} from vcf")
                     res = pool.apply_async(
@@ -1224,7 +1214,7 @@ class Genome():
                         {
                             "vcf_name"              : self.vcf_name,
                             "bin_width"             : self.bin_width,
-                            "metric"                : self.metric,
+                            "metric"                : METRIC_RAW_NAME,
 
                             "chromosome_order"      : chromosome_order,
                             "chromosome_name"       : chromosome_name,
@@ -1244,18 +1234,21 @@ class Genome():
                             "type_positions"        : self.type_positions
                         }
                     )
-                results.append([False, res, chromosome_order, chromosome_name])
-            
-            while not all([r[0] for r in results]):
-                for resnum, (finished, res, chromosome_order, chromosome_name) in enumerate(results):
+                results[chromosome_order] = [False, res, chromosome_order, chromosome_name]
+
+            while not all([r[0] for r in results if r is not None]):
+                for resnum, resdata in enumerate(results):
+                    if resdata is None:
+                        continue
+
+                    (finished, res, chromosome_order, chromosome_name) = resdata
+                    
                     if finished:
                         continue
-                    
-                    # if not res.ready():
-                    #     continue
 
                     try:
-                        chromosome_bin_count, chromosome_snps = res.get(timeout=1)
+                        # chromosome_bin_count, chromosome_snps = res.get(timeout=1)
+                        res.get(timeout=1)
                     except mp.TimeoutError:
                         print(f"waiting for {chromosome_name}")
                         continue
@@ -1263,36 +1256,33 @@ class Genome():
                     print(f"got results from {chromosome_name}")
 
                     results[resnum][0] = True
-                    self.genome_bins += chromosome_bin_count
-                    self.genome_snps += chromosome_snps
+                    # self.genome_bins += chromosome_bin_count
+                    # self.genome_snps += chromosome_snps
 
-        for resnum, (finished, res, chromosome_order, chromosome_name) in enumerate(results):
+
+        for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
+            if DEBUG:
+                if chromosome_order >= DEBUG_MAX_CHROM:
+                    break
+
             print(f"loading {chromosome_name}")
-            
-            assert chromosome_name == self.chromosome_names[resnum]
-            
-            chromosome = Chromosome(
-                vcf_name              = self.vcf_name,
-                bin_width             = self.bin_width,
-                metric                = self.metric,
-                
-                chromosome_order      = chromosome_order,
-                chromosome_name       = chromosome_name,
 
-                type_matrix_counter   = self.type_matrix_counter,
-                type_pairwise_counter = self.type_pairwise_counter,
-                type_positions        = self.type_positions
-            )
-            
-            if not chromosome.exists:
+            chromosome_exists, _, chromosome = self.check_chromosome(chromosome_name, METRIC_RAW_NAME)
+            if not chromosome_exists:
                 raise IOError(f"chromosome database does not exists: {chromosome.file_name}")
-            else:
-                print(f"loading chromosome {chromosome_name} {chromosome.file_name}")
-            
+
             chromosome.load()
-            
-            self._chromosomes[chromosome_name] = chromosome
-        
+
+            self.genome_bins += chromosome.bin_count
+            self.genome_snps += chromosome.chromosome_snps
+
+            if chromosome_name not in self._chromosomes:
+                self._chromosomes[chromosome_name] = OrderedDict()
+
+            assert METRIC_RAW_NAME not in self._chromosomes[chromosome_name]
+
+            self._chromosomes[chromosome_name][METRIC_RAW_NAME] = chromosome
+
         print("all chromosomes loaded")
 
     def _load_db(self, preload=False, create_if_not_exists=False):
@@ -1353,7 +1343,7 @@ class Genome():
         chromosome_snps   = 0
         
         for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
-            chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+            chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name, self._metric)
 
             if DEBUG:
                 if chromosome_order >= DEBUG_MAX_CHROM:
@@ -1364,15 +1354,15 @@ class Genome():
             else:
                 if create_if_not_exists:
                     print(f"  Chromosome {chromosome_name} does not exists. {chromosome.file_name}. converting")
-                    self._convert_chromosome(chromosome_name)
-                    chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+                    self._convert_chromosome(chromosome_name, self._metric)
+                    chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name, self._metric)
                     assert chromosome_exists
                 else:
                     raise ValueError(f"Chromosome {chromosome_name} does not exists. {chromosome.file_name}")
 
             if preload:
                 if not chromosome_loaded:
-                    chromosome = self.get_chromosome(chromosome_name)
+                    chromosome = self.get_chromosome(chromosome_name, self._metric)
                 
                 chromosome_bins += chromosome.bin_count
                 chromosome_snps += chromosome.chromosome_snps
@@ -1381,20 +1371,26 @@ class Genome():
             assert self.genome_bins == chromosome_bins, f"self.genome_bins {self.genome_bins} == {chromosome_bins} chromosome_bins"
             assert self.genome_snps == chromosome_snps, f"self.genome_snps {self.genome_snps} == {chromosome_snps} chromosome_snps"
 
-    def _convert_chromosome(self, chromosome_name):
-        if self.metric == METRIC_RAW_NAME:
-            return
-        
-        chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
-        chromosome.metric = METRIC_RAW_NAME
+    def _convert_chromosome(self, chromosome_name: str, metric: str):
+        print(f"Genome._convert_chromosome :: chromosome_name {chromosome_name} metric {metric}")
+        assert metric is not None
 
-        if not chromosome.exists:
-            raise ValueError(f"chromosome {chromosome.chromosome_name} does not exists. {chromosome.file_name}")
+        if metric == METRIC_RAW_NAME:
+            return
+
+        chromosome_exists, _, _ = self.check_chromosome(chromosome_name, metric)
+        if chromosome_exists:
+            return
+
+        chromosome_exists, _, chromosome = self.check_chromosome(chromosome_name, METRIC_RAW_NAME)
+
+        if not chromosome_exists:
+            raise ValueError(f"raw chromosome {chromosome.chromosome_name} does not exists. {chromosome.file_name}")
 
         chromosome.load()
-        chromosome.save(self.metric)
+        chromosome.save(metric)
 
-        chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+        chromosome_exists, _, _ = self.check_chromosome(chromosome_name, metric)
         assert chromosome_exists
 
     def _get_infos(self):
@@ -1409,7 +1405,7 @@ class Genome():
         type_pairwise_counter_name = self.type_pairwise_counter.__name__
         type_positions_name        = self.type_positions.__name__
 
-        names  = ["vcf_name", "metric"]
+        names  = ["vcf_name"]
         vals   = [getattr(self,n) for n in names]
 
         names += [
@@ -1438,25 +1434,28 @@ class Genome():
 
         return data
 
-    def check_chromosome(self, chromosome_name: str) -> typing.Tuple[bool,bool,typing.Union[None, Chromosome]]:
+    def check_chromosome(self, chromosome_name: str, metric: str) -> typing.Tuple[bool,bool,typing.Union[None, Chromosome]]:
         # chromosome_position = self.chromosome_names.index(chromosome_name)
+        assert chromosome_name is not None
         assert chromosome_name in self.chromosome_names, f"invalid chromosome name {chromosome_name}: {','.join(self.chromosome_names)}"
+        assert metric          is not None
 
         chromosome_exists = False
         chromosome_loaded = False
         chromosome_inst   = None
 
-        if chromosome_name in self._chromosomes:
-            chromosome_exists = True
+        if chromosome_name in self._chromosomes and metric in self._chromosomes[chromosome_name]:
             chromosome_loaded = True
-            chromosome_inst   = self._chromosomes[chromosome_name]
+            chromosome_inst   = self._chromosomes[chromosome_name][metric]
+            chromosome_exists = chromosome_inst.exists
+            return chromosome_exists, chromosome_loaded, chromosome_inst
 
         else:
-            chromosome_order = self.chromosome_names.index(chromosome_name)
-            chromosome       = Chromosome(
+            chromosome_order          = self.chromosome_names.index(chromosome_name)
+            chromosome                = Chromosome(
                 vcf_name              = self.vcf_name,
                 bin_width             = self.bin_width,
-                metric                = self.metric,
+                metric                = metric,
 
                 chromosome_order      = chromosome_order,
                 chromosome_name       = chromosome_name,
@@ -1466,16 +1465,15 @@ class Genome():
                 type_pairwise_counter = self.type_pairwise_counter,
                 type_positions        = self.type_positions 
             )
-            
+
+            chromosome_exists = chromosome.exists
             chromosome_inst   = chromosome
-            if chromosome.exists:
-                chromosome_exists = True
-                chromosome_loaded = False
 
-        return chromosome_exists, chromosome_loaded, chromosome_inst
+            return chromosome_exists, chromosome_loaded, chromosome_inst
 
-    def get_chromosome(self, chromosome_name: str) -> Chromosome:
-        chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+    def get_chromosome(self, chromosome_name: str, metric: str) -> Chromosome:
+        print(f"Genome.get_chromosome :: chromosome_name {chromosome_name} metric {metric}")
+        chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name, metric)
 
         if not chromosome_exists:
             raise IOError(f"chromosome database file {chromosome.file_name} does not exists")
@@ -1487,31 +1485,42 @@ class Genome():
             assert chromosome.bin_width                  == self.bin_width
             assert chromosome.chromosome_order           == chromosome.chromosome_order
             assert chromosome.chromosome_name            == chromosome_name
-            assert chromosome.metric                     == self.metric
+            assert chromosome.metric                     == metric
             assert chromosome.sample_names               == self.sample_names
             assert chromosome.type_matrix_counter        == self.type_matrix_counter
             assert chromosome.type_matrix_distance       == self.type_matrix_distance
             assert chromosome.type_pairwise_counter      == self.type_pairwise_counter
             assert chromosome.type_positions             == self.type_positions
 
-            self._chromosomes[chromosome_name] = chromosome
+            if chromosome_name not in self._chromosomes:
+                self._chromosomes[chromosome_name] = OrderedDict()
 
-        return self._chromosomes[chromosome_name]
+            self._chromosomes[chromosome_name][metric] = chromosome
 
-    def save_chromosomes(self):
-        for chromosome_name in self.chromosome_names:
-            chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name)
+        return self._chromosomes[chromosome_name][metric]
+
+    def save_chromosomes(self, metric: str):
+        print(f"Genome.save_chromosomes :: metric {metric}")
+
+        for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
+            if DEBUG:
+                if chromosome_order >= DEBUG_MAX_CHROM:
+                    break
+
+            chromosome_exists, _, chromosome = self.check_chromosome(chromosome_name, metric)
             if chromosome_exists:
                 print(f"chromosome {chromosome_name} already exists: {chromosome.file_name}. skipping")
             else:
                 print(f"chromosome {chromosome_name} does not exists: {chromosome.file_name}. creating")
-                self._convert_chromosome(chromosome_name)
+                self._convert_chromosome(chromosome_name, metric)
 
-    def save(self):
+    def save(self, metric: str=None):
         print(f"{'saving numpy array:':.<32s}{self.file_name:.>30s}")
         print(self)
 
-        self.save_chromosomes()
+        self.save_chromosomes(METRIC_RAW_NAME)
+        if metric is not None:
+            self.save_chromosomes(metric)
 
         if self.exists:
             print(f"filename {self.file_name} already exists. skipping")
@@ -1544,10 +1553,14 @@ class Genome():
             self._load_db(preload=preload, create_if_not_exists=create_if_not_exists)
 
         else:
-            print(f"database does not exists {self.file_name}. reading vcf")
-            self._processVcf(threads=threads)
+            if not create_if_not_exists:
+                raise IOError(f"Database does not exists. {self.file_name}")
 
-            self.save()
+            else:
+                print(f"Database does not exists {self.file_name}. reading vcf")
+                self._processVcf(threads=threads)
+
+                self.save(self._metric)
 
             if not self.complete:
                 raise IOError("not complete. not able to load the database")
@@ -1693,7 +1706,7 @@ class Genomes():
         genome = self.load_genome(genome_name, bin_width, metric)
         
         if chromosome_name != self.curr_chrom_name:
-            chromosome           = genome.get_chromosome(chromosome_name)
+            chromosome           = genome.get_chromosome(chromosome_name, metric)
             self.curr_chrom_name = chromosome_name
             self.curr_chrom      = chromosome
         
@@ -1904,12 +1917,13 @@ class BGzip():
                 offsets_size        = struct.calcsize(offsets_fmt)
                 
                 number_entries      = struct.unpack(number_entries_fmt, fhd.read(number_entries_size))[0]
-                print("number_entries", number_entries)
+                print(f"number_entries {number_entries:12,d}")
                 
-                previous_compressed_offset   = 0
-                previous_uncompressed_offset = 0
-                current_compressed_offset    = 0
-                current_uncompressed_offset  = 0
+                previous_compressed_offset       = 0
+                previous_uncompressed_offset     = 0
+                current_compressed_offset        = 0
+                current_uncompressed_offset      = 0
+                previous_uncompressed_block_text = None
                 for entry_num in range(number_entries):
                     next_compressed_offset, next_uncompressed_offset = struct.unpack(offsets_fmt, fhd.read(offsets_size))
                     previous_compressed_size   = current_compressed_offset   - previous_compressed_offset
@@ -1917,21 +1931,30 @@ class BGzip():
                     current_compressed_size    = next_compressed_offset      - current_compressed_offset
                     current_uncompressed_size  = next_uncompressed_offset    - current_uncompressed_offset
 
-                    # print("current_compressed_offset", current_compressed_offset, "compressed_offset", compressed_offset, "current_uncompressed_offset", current_uncompressed_offset, "uncompressed_offset", uncompressed_offset, "compressed_size", compressed_size, "uncompressed_size", uncompressed_size)
+                    # print(
+                    #     "current_compressed_offset"   , current_compressed_offset   ,
+                    #     "previous_compressed_offset"  , previous_compressed_offset  ,
+                    #     "current_uncompressed_offset" , current_uncompressed_offset ,
+                    #     "previous_uncompressed_offset", previous_uncompressed_offset,
+                    #     "current_compressed_size"     , current_compressed_size     ,
+                    #     "current_uncompressed_size"   , current_uncompressed_size
+                    # )
                     
-                    self._get_first_contig(
-                        gzip_fhd,
+                    previous_uncompressed_block_text = self._get_first_contig(
+                        gzip_fhd ,
                         entry_num,
                         
-                        previous_compressed_offset,
+                        previous_compressed_offset  ,
                         previous_uncompressed_offset,
-                        previous_compressed_size,
-                        previous_uncompressed_size,
+                        previous_compressed_size    ,
+                        previous_uncompressed_size  ,
 
-                        current_compressed_offset,
-                        current_uncompressed_offset,
-                        current_compressed_size,
-                        current_uncompressed_size,
+                        current_compressed_offset   ,
+                        current_uncompressed_offset ,
+                        current_compressed_size     ,
+                        current_uncompressed_size   ,
+
+                        previous_uncompressed_block_text = previous_uncompressed_block_text
                     )
                     
                     previous_compressed_offset   = current_compressed_offset
@@ -1940,18 +1963,20 @@ class BGzip():
                     current_uncompressed_offset  = next_uncompressed_offset
     
     def _get_first_contig(self,
-            gzip_fhd : typing.IO,
-            entry_num: int,
-            
-            previous_compressed_offset  : int,
-            previous_uncompressed_offset: int,
-            previous_compressed_size    : int,
-            previous_uncompressed_size  : int,
+            gzip_fhd                        : typing.IO,
+            entry_num                       : int,
 
-            current_compressed_offset   : int,
-            current_uncompressed_offset : int,
-            current_compressed_size     : int,
-            current_uncompressed_size   : int,
+            previous_compressed_offset      : int,
+            previous_uncompressed_offset    : int,
+            previous_compressed_size        : int,
+            previous_uncompressed_size      : int,
+
+            current_compressed_offset       : int,
+            current_uncompressed_offset     : int,
+            current_compressed_size         : int,
+            current_uncompressed_size       : int,
+
+            previous_uncompressed_block_text: str = None
         ):
 
         gzip_fhd.seek(current_compressed_offset)
@@ -1961,47 +1986,72 @@ class BGzip():
         assert len(uncompressed_block) == current_uncompressed_size
         uncompressed_block_text = uncompressed_block.decode()
         
+
+        if previous_uncompressed_block_text is not None:
+            uncompressed_block_text = previous_uncompressed_block_text + uncompressed_block_text
+
         firstNewLine = 0
-        first_tab     = 0
-        chrom_name    = None
+        first_tab    = 0
+        chrom_name   = None
+        attemptCount = 0
+        error        = False
         while True:
+            # print(".", end="")
+
+            attemptCount += 1
+
+            # if attemptCount > 200:
+            #     print("more than 200 attempts to find the first line")
+            #     print(uncompressed_block_text)
+            #     break
+
             if firstNewLine >= len(uncompressed_block_text):
                 raise ValueError(f"firstNewLine {firstNewLine} >= {len(uncompressed_block_text)} len(uncompressed_block_text)")
 
             firstNewLine  = uncompressed_block_text.find("\n", firstNewLine+1)
             if firstNewLine == -1:
                 print("no firstNewLine")
-                continue
-            
+                error = True
+                break
+
             secondNewLine = uncompressed_block_text.find("\n", firstNewLine+1)
             if secondNewLine == -1:
                 print("no secondNewLine")
-                firstNewLine += 1
-                continue
-            
+                # firstNewLine += 1
+                error  = True
+                break
+
             firstLine     = uncompressed_block_text[firstNewLine+1:secondNewLine]
             if len(firstLine) == 0:
                 print("no firstLine", firstNewLine, secondNewLine)
                 firstNewLine += 1
                 continue
-            
+
             if firstLine[0] == "#":
                 print("skipping header", firstLine)
                 firstNewLine += 1
                 continue
-            
+
             first_tab      = firstLine.find("\t")
             if first_tab == -1:
                 print("no first_tab", firstLine)
+                firstNewLine += 1
                 continue
-            
+
             chrom_name     = firstLine[:first_tab]
             if len(chrom_name) == 0:
                 print("no chrom_name", firstNewLine, first_tab, firstLine)
                 chrom_name = None
+                firstNewLine += 1
                 continue
 
             break
+
+        if error:
+            previous_uncompressed_block_text = uncompressed_block_text
+            return previous_uncompressed_block_text
+        else:
+            previous_uncompressed_block_text = None
 
         if chrom_name is None:
             raise ValueError("No chromosome name found")
@@ -2074,6 +2124,7 @@ class BGzip():
                         continue
 
                 found_chrom = True
+                # print(line)
                 yield line
 
                 # break
@@ -2393,13 +2444,15 @@ def matrixDistance(matrix: np.ndarray, metric=DEFAULT_METRIC, dtype=np.float64, 
         # array([4, 2, 0, 1, 3], dtype=int32))
     """
 
-    assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
+    """
+        METRIC_PDIST
+        METRIC_HIERARCHICAL
+            "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
+        METRIC_HIERARCHICAL += ["linkage+" + d for d in METRIC_PDIST]
+            # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
+    """
 
-    # METRIC_PDIST
-    # METRIC_HIERARCHICAL
-    #     "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
-    # METRIC_HIERARCHICAL += ["linkage+" + d for d in METRIC_PDIST]
-    #     # "linkage" , #(y[, method, metric, optimal_ordering]) Perform hierarchical/agglomerative clustering.
+    assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
 
     if   len(matrix.shape) == 1:
         square_matrix = squareform(matrix, force='tomatrix')
@@ -2521,13 +2574,62 @@ def genIUPAC() -> IUPACType:
 
     return IUPAC
 
+def parse_tsv(rename_tsv: str):
+    names = OrderedDict()
+    with open(rename_tsv, 'rt') as fhd:
+        for line in fhd:
+            line = line.strip()
+            if len(line) == 0:
+                continue
+            if line[0] == "#":
+                continue
+            cols = line.split("\t")
+            assert len(cols) == 2
+            name_from, name_to = cols
+            names[name_from] = name_to
+    return names
 
+
+parser = argparse.ArgumentParser(description='Introgression Browser V3.0')
+parser.add_argument('--bin-size'            , '-b', nargs='?', default=DEFAULT_BIN_SIZE, type=int, metavar="BIN SIZE"  , help=f'Bin Size [{DEFAULT_BIN_SIZE}]')
+parser.add_argument('--threads'             , '-t', nargs='?', default=DEFAULT_THREADS , type=int, metavar="THREADS"   , help=f'Number of threads [{DEFAULT_THREADS}]')
+parser.add_argument('--metric'              , '-m', nargs='?', default=DEFAULT_METRIC  , type=str, metavar="METRIC"    , help='Metric [{DEFAULT_METRIC}]')
+parser.add_argument('--rename-tsv'          , '-r', nargs='?', default=None            , type=str, metavar="RENAME-TSV", help='TSV to rename sample names')
+parser.add_argument('--create-if-not-exists', action='store_true')
+parser.add_argument('--debug'               , action='store_true')
+parser.add_argument('--version'             , action='version', version=f'{__name} {__version__}')
+parser.add_argument('filename'              , type=str, metavar="FILENAME", help="VCF BGZip filename")
 
 def main():
-    genome = Genome(
-        sys.argv[1],
-        bin_width             = DEFAULT_BIN_SIZE,
-        metric                = DEFAULT_METRIC,
+    args                 = parser.parse_args()
+    filename             = args.filename
+    bin_size             = args.bin_size
+    metric               = args.metric
+    threads              = args.threads
+    rename_tsv           = args.rename_tsv
+    create_if_not_exists = args.create_if_not_exists
+    debug                = args.debug
+
+    print(f"{'File Name'           :20s}: {filename}")
+    print(f"{'Bin Size'            :20s}: {bin_size:7,d}")
+    print(f"{'Metric'              :20s}: {metric}")
+    print(f"{'Threads'             :20s}: {threads:7,d}")
+    print(f"{'rename_tsv'          :20s}: {rename_tsv}")
+    print(f"{'Create if Not Exists':20s}: {create_if_not_exists}")
+    print(f"{'Debug'               :20s}: {debug}")
+
+    assert os.path.exists(filename)
+
+    rename_dict = None
+    if rename_tsv is not None:
+        assert os.path.exists(rename_tsv)
+        rename_dict = parse_tsv(rename_tsv)
+        # print(rename_dict)
+
+    genome   = Genome(
+        filename,
+        bin_width             = bin_size,
+        metric                = metric,
 
         diff_matrix           = genDiffMatrix(alphabet=list(range(4))),
         IUPAC                 = genIUPAC(),
@@ -2536,12 +2638,16 @@ def main():
         type_matrix_counter   = DEFAULT_COUNTER_TYPE_MATRIX,
         type_matrix_distance  = DEFAULT_DISTANCE_TYPE_MATRIX,
         type_pairwise_counter = DEFAULT_COUNTER_TYPE_PAIRWISE,
-        type_positions        = DEFAULT_POSITIONS_TYPE
+        type_positions        = DEFAULT_POSITIONS_TYPE,
+        rename_dict           = rename_dict
     )
+
+    # print("DEFAULT_THREADS", DEFAULT_THREADS)
+
     create_if_not_exists = True
     # genome.load(create_if_not_exists=create_if_not_exists, threads=6)
-    print("DEFAULT_THREADS", DEFAULT_THREADS)
-    genome.load(create_if_not_exists=create_if_not_exists, threads=DEFAULT_THREADS if not DEBUG else 1)
+    genome.load(create_if_not_exists=create_if_not_exists, threads=threads if not DEBUG else 1)
+
 
 
 if __name__ == "__main__":

@@ -1005,7 +1005,13 @@ class ChromosomeController(flx.PyComponent):
         color_name = self.color_name if color_name is None else color_name
         min_val    = self.min_val    if min_val    is None else min_val
         max_val    = self.max_val    if max_val    is None else max_val
-        val_ran    = (max_val-min_val)/self.num_vals
+        dif_val    = max_val - min_val
+        if dif_val == 0:
+            arange  = np.arange(min_val, max_val + 1.0, 1.0)
+        else:
+            val_ran = dif_val/self.num_vals
+            arange  = np.arange(min_val, max_val, val_ran)
+        # print("arange", arange)
         # print("min_val", min_val)
         # print("max_val", max_val)
         # print("val_ran", val_ran)
@@ -1018,8 +1024,6 @@ class ChromosomeController(flx.PyComponent):
             over    = self.color_over,
             under   = self.color_under
         )
-        arange = np.arange(min_val, max_val, val_ran)
-        # print("arange", arange)
         acolor = cmap(arange)
         # print("min_val ", min_val)
         # print("max_val ", max_val)
@@ -1052,14 +1056,17 @@ class ChromosomeController(flx.PyComponent):
         else:
             print(f"ChromosomeController.display :: displaying")
             matrix     = self.matrix_sample(self.sample_name)
-            # print(f"ChromosomeController.display :: matrix", matrix)
+            print(f"ChromosomeController.display :: matrix", matrix)
             # print(f"ChromosomeController.display :: np.nanmin(matrix)", np.nanmin(matrix))
             # print(f"ChromosomeController.display :: np.nanmax(matrix)", np.nanmax(matrix))
             matrix     = matrix.astype(np.float)
-            matrix[matrix == np.nanmin(matrix)] = None
-            matrix[matrix == np.nanmax(matrix)] = None
             matrix_min = float(np.nanmin(matrix))
             matrix_max = float(np.nanmax(matrix))
+            if matrix_min != matrix_max:
+                matrix[matrix == np.nanmin(matrix)] = None
+                matrix[matrix == np.nanmax(matrix)] = None
+                matrix_min = float(np.nanmin(matrix))
+                matrix_max = float(np.nanmax(matrix))
 
             bin_snps_min = min(self.bin_snps)
             bin_snps_max = max(self.bin_snps)
@@ -1098,7 +1105,7 @@ class ChromosomeController(flx.PyComponent):
             # print(f"ChromosomeController.display :: matrix = {matrix}")
             print(f"ChromosomeController.display :: matrix max = {matrix_max}")
             print(f"ChromosomeController.display :: matrix min = {matrix_min}")
-            assert matrix_max >= matrix_min
+            assert matrix_max >= matrix_min, f"matrix_max {matrix_max} >= {matrix_min} matrix_min"
             self.set_min_max_val(matrix_min, matrix_max)
             self.set_color(min_val=matrix_min, max_val=matrix_max)
 
