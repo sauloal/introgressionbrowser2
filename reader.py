@@ -414,12 +414,14 @@ class Chromosome():
             assert len(samples) == sample_count
             
             if len(ref) != 1:
-                # print('H')
+                # print(f'H {chrom} {pos:12,d} {ref} {alts}')
                 continue
 
             if any([len(a) > 1 for a in alts]):
-                # print('h')
+                # print(f'h {chrom} {pos:12,d} {ref} {alts}')
                 continue
+            # print(f'S {chrom} {pos:12,d} {ref} {alts}')
+            print(".", end="")
 
             if binNum not in chromosome_matrix:
                 if DEBUG:
@@ -448,7 +450,9 @@ class Chromosome():
                     bin_alignment[binNum]  = [[] for _ in range(sample_count)]
                     bin_positions[binNum]  = []
 
-            samples                   = [s.split(";")[0]            for s in samples]
+            # print(samples)
+
+            samples                   = [s.split(":")[0]            for s in samples]
             samples                   = [s if len(s) == 3 else None for s in samples]
             # samples = [s.replace("|", "").replace("/", "") if s is not None else None for s in samples]
             samples                   = [tuple([int(i) for i in s.replace("/", "|").split("|")]) if s is not None else None for s in samples]
@@ -457,6 +461,8 @@ class Chromosome():
             chromosome_snps          += 1
             bin_snps[binNum]         += 1
             chromosome_last_position  = pos
+
+            # print(samples)
 
             aling                     = None
             if save_alignment:
@@ -485,7 +491,7 @@ class Chromosome():
                         continue
 
                     k = (sample1, sample2) if sample1 <= sample2 else (sample2, sample1)
-
+                    print(k)
                     value = diff_matrix.get(k, None)
                     if value is None:
                         print(line)

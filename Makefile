@@ -48,7 +48,7 @@ tree:
 
 
 .PHONY: runs
-runs: data/150_VCFs_2.50.tar.gz_ib data/360_merged_2.50.vcf.gz_ib
+runs: data/150_VCFs_2.50.tar.gz_ib data/360_merged_2.50.vcf.gz_ib data/annotated_tomato_150.vcf.gz_ib
 
 data/150_VCFs_2.50.tar.gz_ib: data/150_VCFs_2.50.tar.gz
 	$(PYTHON) ./reader.py $<
@@ -56,6 +56,8 @@ data/150_VCFs_2.50.tar.gz_ib: data/150_VCFs_2.50.tar.gz
 data/360_merged_2.50.vcf.gz_ib: data/360_merged_2.50.vcf.gz
 	$(PYTHON) ./reader.py $<
 
+data/annotated_tomato_150.vcf.gz_ib: data/annotated_tomato_150.vcf.gz data/annotated_tomato_150.vcf.gz.tsv
+	$(PYTHON) ./reader.py --rename-tsv data/annotated_tomato_150.vcf.gz.tsv data/annotated_tomato_150.vcf.gz
 
 
 .PHONY: examples
