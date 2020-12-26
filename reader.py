@@ -421,7 +421,7 @@ class Chromosome():
                 # print(f'h {chrom} {pos:12,d} {ref} {alts}')
                 continue
             # print(f'S {chrom} {pos:12,d} {ref} {alts}')
-            print(".", end="")
+            # print(".", end="")
 
             if binNum not in chromosome_matrix:
                 if DEBUG:
@@ -461,6 +461,10 @@ class Chromosome():
             chromosome_snps          += 1
             bin_snps[binNum]         += 1
             chromosome_last_position  = pos
+
+            if all([s is None for s in samples]):
+                print(f'E {chrom} {pos:12,d} {ref} {alts}')
+                continue
 
             # print(samples)
 
