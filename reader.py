@@ -454,6 +454,11 @@ class Chromosome():
 
             samples                   = [s.split(":")[0]            for s in samples]
             samples                   = [s if len(s) == 3 else None for s in samples]
+
+            if all([s is None for s in samples]):
+                print(f'E {chrom} {pos:12,d} {ref} {alts}')
+                continue
+
             # samples = [s.replace("|", "").replace("/", "") if s is not None else None for s in samples]
             samples                   = [tuple([int(i) for i in s.replace("/", "|").split("|")]) if s is not None else None for s in samples]
             vals                      = chromosome_matrix[binNum]
@@ -461,10 +466,6 @@ class Chromosome():
             chromosome_snps          += 1
             bin_snps[binNum]         += 1
             chromosome_last_position  = pos
-
-            if all([s is None for s in samples]):
-                print(f'E {chrom} {pos:12,d} {ref} {alts}')
-                continue
 
             # print(samples)
 
