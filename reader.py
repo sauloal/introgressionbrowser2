@@ -496,7 +496,7 @@ class Chromosome():
                         continue
 
                     k = (sample1, sample2) if sample1 <= sample2 else (sample2, sample1)
-                    print(k)
+                    # print(k)
                     value = diff_matrix.get(k, None)
                     if value is None:
                         print(line)
