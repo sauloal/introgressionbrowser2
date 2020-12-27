@@ -1919,59 +1919,147 @@ class BGzip():
     def _parse_gzi(self):
         print(f"reading gzi from {self.gzi_file}")
 
+        offsets        = []
+        number_entries = None
+
+        print(f" loading gzi")
+        with open(self.gzi_file, 'rb') as fhd:
+            number_entries_fmt  = "<Q"
+            number_entries_size = struct.calcsize(number_entries_fmt)
+            
+            offsets_fmt         = "<QQ"
+            offsets_size        = struct.calcsize(offsets_fmt)
+            
+            number_entries      = struct.unpack(number_entries_fmt, fhd.read(number_entries_size))[0]
+            print(f"number_entries {number_entries:12,d}")
+            offsets = [None] * number_entries
+
+            previous_compressed_offset       = 0
+            previous_uncompressed_offset     = 0
+            current_compressed_offset        = 0
+            current_uncompressed_offset      = 0
+
+            for entry_num in range(number_entries):
+                next_compressed_offset, next_uncompressed_offset = struct.unpack(offsets_fmt, fhd.read(offsets_size))
+                previous_compressed_size   = current_compressed_offset   - previous_compressed_offset
+                previous_uncompressed_size = current_uncompressed_offset - previous_uncompressed_offset
+                current_compressed_size    = next_compressed_offset      - current_compressed_offset
+                current_uncompressed_size  = next_uncompressed_offset    - current_uncompressed_offset
+
+                offsets[entry_num] = [
+                    entry_num,
+                    
+                    previous_compressed_offset,
+                    previous_uncompressed_offset,
+                    previous_compressed_size,
+                    previous_uncompressed_size,
+
+                    current_compressed_offset,
+                    current_uncompressed_offset,
+                    current_compressed_size,
+                    current_uncompressed_size,
+
+                    None,
+                    None,
+                ]
+
+                previous_compressed_offset   = current_compressed_offset
+                previous_uncompressed_offset = current_uncompressed_offset
+                current_compressed_offset    = next_compressed_offset
+                current_uncompressed_offset  = next_uncompressed_offset
+
+        assert number_entries is not None
+        assert number_entries > 0
+        assert len(offsets)   > 0
+        assert not any([o is None for o in offsets])
+
+        print(f" finding chromosomes")
         with open(self.gzip_file, 'rb') as gzip_fhd:
-            with open(self.gzi_file, 'rb') as fhd:
-                number_entries_fmt  = "<Q"
-                number_entries_size = struct.calcsize(number_entries_fmt)
-                
-                offsets_fmt         = "<QQ"
-                offsets_size        = struct.calcsize(offsets_fmt)
-                
-                number_entries      = struct.unpack(number_entries_fmt, fhd.read(number_entries_size))[0]
-                print(f"number_entries {number_entries:12,d}")
-                
-                previous_compressed_offset       = 0
-                previous_uncompressed_offset     = 0
-                current_compressed_offset        = 0
-                current_uncompressed_offset      = 0
-                previous_uncompressed_block_text = None
-                for entry_num in range(number_entries):
-                    next_compressed_offset, next_uncompressed_offset = struct.unpack(offsets_fmt, fhd.read(offsets_size))
-                    previous_compressed_size   = current_compressed_offset   - previous_compressed_offset
-                    previous_uncompressed_size = current_uncompressed_offset - previous_uncompressed_offset
-                    current_compressed_size    = next_compressed_offset      - current_compressed_offset
-                    current_uncompressed_size  = next_uncompressed_offset    - current_uncompressed_offset
+            entry_num       = 0
+            step            = 1
+            narrowing       = False
+            last_chrom_name = None
+            previous_uncompressed_block_text = None
 
-                    # print(
-                    #     "current_compressed_offset"   , current_compressed_offset   ,
-                    #     "previous_compressed_offset"  , previous_compressed_offset  ,
-                    #     "current_uncompressed_offset" , current_uncompressed_offset ,
-                    #     "previous_uncompressed_offset", previous_uncompressed_offset,
-                    #     "current_compressed_size"     , current_compressed_size     ,
-                    #     "current_uncompressed_size"   , current_uncompressed_size
-                    # )
+            while entry_num < number_entries:
+                if step != 1:
+                    print(f"  entry_num {entry_num:12,d} step {step:12,d} narrowing {narrowing}")
+
+                (
+                    _,
+    
+                    previous_compressed_offset,
+                    previous_uncompressed_offset,
+                    previous_compressed_size,
+                    previous_uncompressed_size,
+
+                    current_compressed_offset,
+                    current_uncompressed_offset,
+                    current_compressed_size,
+                    current_uncompressed_size,
+
+                    chrom_name,
+                    position
+                ) = offsets[entry_num]
+
+                # print(
+                #     "current_compressed_offset"   , current_compressed_offset   ,
+                #     "previous_compressed_offset"  , previous_compressed_offset  ,
+                #     "current_uncompressed_offset" , current_uncompressed_offset ,
+                #     "previous_uncompressed_offset", previous_uncompressed_offset,
+                #     "current_compressed_size"     , current_compressed_size     ,
+                #     "current_uncompressed_size"   , current_uncompressed_size
+                # )
+                
+                previous_uncompressed_block_text, new_chrom_name, new_position = self._get_first_contig(
+                    gzip_fhd ,
+                    entry_num,
                     
-                    previous_uncompressed_block_text = self._get_first_contig(
-                        gzip_fhd ,
-                        entry_num,
-                        
-                        previous_compressed_offset  ,
-                        previous_uncompressed_offset,
-                        previous_compressed_size    ,
-                        previous_uncompressed_size  ,
+                    previous_compressed_offset  ,
+                    previous_uncompressed_offset,
+                    previous_compressed_size    ,
+                    previous_uncompressed_size  ,
 
-                        current_compressed_offset   ,
-                        current_uncompressed_offset ,
-                        current_compressed_size     ,
-                        current_uncompressed_size   ,
+                    current_compressed_offset   ,
+                    current_uncompressed_offset ,
+                    current_compressed_size     ,
+                    current_uncompressed_size   ,
 
-                        previous_uncompressed_block_text = previous_uncompressed_block_text
-                    )
-                    
-                    previous_compressed_offset   = current_compressed_offset
-                    previous_uncompressed_offset = current_uncompressed_offset
-                    current_compressed_offset    = next_compressed_offset
-                    current_uncompressed_offset  = next_uncompressed_offset
+                    previous_uncompressed_block_text = previous_uncompressed_block_text
+                )
+                
+                if previous_uncompressed_block_text is not None:
+                    narrowing        = False
+                    step             = 1
+                    entry_num       += step
+
+                else:
+                    if new_chrom_name == last_chrom_name:
+                        if not narrowing:
+                            step        += 1000
+                        entry_num       += step
+                    else:
+                        if narrowing:
+                            print(f"found start of chromosome {new_chrom_name} - step {step:12,d} - entry_num {entry_num - 1:12,d} - new_position {new_position:12,d}")
+                            narrowing        = False
+                            step             = 1
+                            entry_num       += step
+                            last_chrom_name  = new_chrom_name
+
+                        else:
+                            if last_chrom_name is None:
+                                print(f"found start of FIRST chromosome {new_chrom_name} - step {step:12,d} - entry_num {entry_num - 1:12,d} - new_position {new_position:12,d}")
+                                last_chrom_name = new_chrom_name
+                                narrowing       = False
+
+                            else:
+                                print(f"overstepped chromosome {last_chrom_name} into {new_chrom_name} - narrowing {narrowing} - step {step:12,d} - entry_num {entry_num - 1:12,d} - new_position {new_position:12,d}")
+                                entry_num   -= step
+                                narrowing    = True
+                                step         = 1
+                            entry_num   += step
+
+
     
     def _get_first_contig(self,
             gzip_fhd                        : typing.IO,
@@ -2004,6 +2092,7 @@ class BGzip():
         firstNewLine = 0
         first_tab    = 0
         chrom_name   = None
+        position     = None
         attemptCount = 0
         error        = False
         while True:
@@ -2056,34 +2145,62 @@ class BGzip():
                 firstNewLine += 1
                 continue
 
+            second_tab      = firstLine.find("\t", first_tab+1)
+            if second_tab == -1:
+                print("no second_tab", firstLine)
+                firstNewLine += 1
+                continue
+            
+            position = firstLine[first_tab+1:second_tab]
+            if len(position) == 0:
+                print("no position", firstNewLine, first_tab, second_tab, chrom_name, firstLine)
+                chrom_name    = None
+                position      = None
+                firstNewLine += 1
+                continue
+
             break
 
         if error:
             previous_uncompressed_block_text = uncompressed_block_text
-            return previous_uncompressed_block_text
+            return previous_uncompressed_block_text, None, None
         else:
             previous_uncompressed_block_text = None
 
         if chrom_name is None:
             raise ValueError("No chromosome name found")
 
-        if chrom_name not in self._data:
-            print(f"NEW CHROMOSOME")
-            print(f"  chrom_name                   {chrom_name:>15s}")
-            print(f"  entry_num                    {entry_num:15,d}")
+        if position is None:
+            raise ValueError("No chromosome name found")
 
-            print(f"  previous_compressed_offset   {previous_compressed_offset:15,d}")
-            print(f"  previous_uncompressed_offset {previous_uncompressed_offset:15,d}")
-            print(f"  previous_compressed_size     {previous_compressed_size:15,d}")
-            print(f"  previous_uncompressed_size   {previous_uncompressed_size:15,d}")
+        try:
+            position = int(position)
+        except:
+            raise ValueError(f"INVALID POSITION. position {position} cannot be interpreted as integer")
 
-            print(f"  current_compressed_offset    {current_compressed_offset:15,d}")
-            print(f"  current_uncompressed_offset  {current_uncompressed_offset:15,d}")
-            print(f"  current_compressed_size      {current_compressed_size:15,d}")
-            print(f"  current_uncompressed_size    {current_uncompressed_size:15,d}")
+        if chrom_name not in self._data or entry_num < self._data[chrom_name]["entry_num"]:
+            if chrom_name not in self._data:
+                print(f"NEW CHROMOSOME")
+                print(f"  chrom_name                   {chrom_name:>15s}")
+                print(f"  first position               {position:15,d}")
+                print(f"  entry_num                    {entry_num:15,d}")
+
+                print(f"  previous_compressed_offset   {previous_compressed_offset:15,d}")
+                print(f"  previous_uncompressed_offset {previous_uncompressed_offset:15,d}")
+                print(f"  previous_compressed_size     {previous_compressed_size:15,d}")
+                print(f"  previous_uncompressed_size   {previous_uncompressed_size:15,d}")
+
+                print(f"  current_compressed_offset    {current_compressed_offset:15,d}")
+                print(f"  current_uncompressed_offset  {current_uncompressed_offset:15,d}")
+                print(f"  current_compressed_size      {current_compressed_size:15,d}")
+                print(f"  current_uncompressed_size    {current_uncompressed_size:15,d}")
+
+            else:
+                print(f"updated chromosome {chrom_name} from entry_num {self._data[chrom_name]['entry_num']:12,d} position {self._data[chrom_name]['position']:12,d} to entry_num {entry_num:12,d} position {position:12,d}")
 
             self._data[chrom_name] = {
                 "entry_num"                      : entry_num,
+                "position"                       : position,
                 
                 "previous_compressed_offset"     : previous_compressed_offset,
                 "previous_uncompressed_offset"   : previous_uncompressed_offset,
@@ -2095,6 +2212,8 @@ class BGzip():
                 "current_compressed_size"        : current_compressed_size,
                 "current_uncompressed_size"      : current_uncompressed_size,
             }
+
+        return None, chrom_name, position
 
     def get_chromosome(self, chrom_name: str) -> typing.Generator[str, None, None]:
         if chrom_name not in self._data:
@@ -2607,6 +2726,7 @@ parser.add_argument('--threads'             , '-t', nargs='?', default=DEFAULT_T
 parser.add_argument('--metric'              , '-m', nargs='?', default=DEFAULT_METRIC  , type=str, metavar="METRIC"    , help='Metric [{DEFAULT_METRIC}]')
 parser.add_argument('--rename-tsv'          , '-r', nargs='?', default=None            , type=str, metavar="RENAME-TSV", help='TSV to rename sample names')
 parser.add_argument('--create-if-not-exists', action='store_true')
+parser.add_argument('--index-only'          , action='store_true')
 parser.add_argument('--debug'               , action='store_true')
 parser.add_argument('--version'             , action='version', version=f'{__name} {__version__}')
 parser.add_argument('filename'              , type=str, metavar="FILENAME", help="VCF BGZip filename")
@@ -2619,6 +2739,7 @@ def main():
     threads              = args.threads
     rename_tsv           = args.rename_tsv
     create_if_not_exists = args.create_if_not_exists
+    index_only           = args.index_only
     debug                = args.debug
 
     print(f"{'File Name'           :20s}: {filename}")
@@ -2627,9 +2748,20 @@ def main():
     print(f"{'Threads'             :20s}: {threads:7,d}")
     print(f"{'rename_tsv'          :20s}: {rename_tsv}")
     print(f"{'Create if Not Exists':20s}: {create_if_not_exists}")
+    print(f"{'Index Only'          :20s}: {index_only}")
     print(f"{'Debug'               :20s}: {debug}")
 
     assert os.path.exists(filename)
+
+    if index_only:
+        bgzip                 = BGzip(filename)
+
+        chromosome_names = bgzip.chromosomes
+        chromosome_count = len(chromosome_names)
+        print(f"{chromosome_count:12,d} chromosomes found")
+        for chromosome_name in chromosome_names:
+            print("\t", chromosome_name)
+        return
 
     rename_dict = None
     if rename_tsv is not None:
