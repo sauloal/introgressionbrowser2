@@ -1,158 +1,210 @@
-{
- "SL2.50ch00": {
-  "entry_num": 0,
-  "position": 280,
-  "previous_compressed_offset": 0,
-  "previous_uncompressed_offset": 0,
-  "previous_compressed_size": 0,
-  "previous_uncompressed_size": 0,
-  "current_compressed_offset": 0,
-  "current_uncompressed_offset": 0,
-  "current_compressed_size": 8002,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch01": {
-  "entry_num": 12950,
-  "position": 1795,
-  "previous_compressed_offset": 103017807,
-  "previous_uncompressed_offset": 845310720,
-  "previous_compressed_size": 6773,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 103024580,
-  "current_uncompressed_offset": 845376000,
-  "current_compressed_size": 7649,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch02": {
-  "entry_num": 113410,
-  "position": 752,
-  "previous_compressed_offset": 861154719,
-  "previous_uncompressed_offset": 7403339520,
-  "previous_compressed_size": 10276,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 861164995,
-  "current_uncompressed_offset": 7403404800,
-  "current_compressed_size": 8205,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch03": {
-  "entry_num": 168895,
-  "position": 101,
-  "previous_compressed_offset": 1275746978,
-  "previous_uncompressed_offset": 11025400320,
-  "previous_compressed_size": 10069,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 1275757047,
-  "current_uncompressed_offset": 11025465600,
-  "current_compressed_size": 9587,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch04": {
-  "entry_num": 237686,
-  "position": 421,
-  "previous_compressed_offset": 1785628158,
-  "previous_uncompressed_offset": 15516076800,
-  "previous_compressed_size": 7348,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 1785635506,
-  "current_uncompressed_offset": 15516142080,
-  "current_compressed_size": 7545,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch05": {
-  "entry_num": 308700,
-  "position": 364,
-  "previous_compressed_offset": 2332334979,
-  "previous_uncompressed_offset": 20151870720,
-  "previous_compressed_size": 8648,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 2332343627,
-  "current_uncompressed_offset": 20151936000,
-  "current_compressed_size": 6945,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch06": {
-  "entry_num": 376120,
-  "position": 906,
-  "previous_compressed_offset": 2849178471,
-  "previous_uncompressed_offset": 24553048320,
-  "previous_compressed_size": 7985,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 2849186456,
-  "current_uncompressed_offset": 24553113600,
-  "current_compressed_size": 7013,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch07": {
-  "entry_num": 426894,
-  "position": 4386,
-  "previous_compressed_offset": 3228432499,
-  "previous_uncompressed_offset": 27867575040,
-  "previous_compressed_size": 11197,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 3228443696,
-  "current_uncompressed_offset": 27867640320,
-  "current_compressed_size": 9569,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch08": {
-  "entry_num": 494723,
-  "position": 264,
-  "previous_compressed_offset": 3746906173,
-  "previous_uncompressed_offset": 32295452160,
-  "previous_compressed_size": 7499,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 3746913672,
-  "current_uncompressed_offset": 32295517440,
-  "current_compressed_size": 7620,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch09": {
-  "entry_num": 558765,
-  "position": 475,
-  "previous_compressed_offset": 4232746009,
-  "previous_uncompressed_offset": 36476113920,
-  "previous_compressed_size": 9661,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 4232755670,
-  "current_uncompressed_offset": 36476179200,
-  "current_compressed_size": 10765,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch10": {
-  "entry_num": 628226,
-  "position": 3302,
-  "previous_compressed_offset": 4766703001,
-  "previous_uncompressed_offset": 41010528000,
-  "previous_compressed_size": 9642,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 4766712643,
-  "current_uncompressed_offset": 41010593280,
-  "current_compressed_size": 8206,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch11": {
-  "entry_num": 693654,
-  "position": 657,
-  "previous_compressed_offset": 5261120137,
-  "previous_uncompressed_offset": 45281667840,
-  "previous_compressed_size": 9425,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 5261129562,
-  "current_uncompressed_offset": 45281733120,
-  "current_compressed_size": 7782,
-  "current_uncompressed_size": 65280
- },
- "SL2.50ch12": {
-  "entry_num": 746961,
-  "position": 177,
-  "previous_compressed_offset": 5667221494,
-  "previous_uncompressed_offset": 48761548800,
-  "previous_compressed_size": 7079,
-  "previous_uncompressed_size": 65280,
-  "current_compressed_offset": 5667228573,
-  "current_uncompressed_offset": 48761614080,
-  "current_compressed_size": 7184,
-  "current_uncompressed_size": 65280
- }
-}
+[
+ [
+  "SL2.50ch00",
+  {
+   "chrom_name": "SL2.50ch00",
+   "entry_num": 0,
+   "position": 280,
+   "previous_compressed_offset": 0,
+   "previous_uncompressed_offset": 0,
+   "previous_compressed_size": 0,
+   "previous_uncompressed_size": 0,
+   "current_compressed_offset": 0,
+   "current_uncompressed_offset": 0,
+   "current_compressed_size": 8002,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch01",
+  {
+   "chrom_name": "SL2.50ch01",
+   "entry_num": 12950,
+   "position": 1795,
+   "previous_compressed_offset": 103017807,
+   "previous_uncompressed_offset": 845310720,
+   "previous_compressed_size": 6773,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 103024580,
+   "current_uncompressed_offset": 845376000,
+   "current_compressed_size": 7649,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch02",
+  {
+   "chrom_name": "SL2.50ch02",
+   "entry_num": 113410,
+   "position": 752,
+   "previous_compressed_offset": 861154719,
+   "previous_uncompressed_offset": 7403339520,
+   "previous_compressed_size": 10276,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 861164995,
+   "current_uncompressed_offset": 7403404800,
+   "current_compressed_size": 8205,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch03",
+  {
+   "chrom_name": "SL2.50ch03",
+   "entry_num": 168895,
+   "position": 101,
+   "previous_compressed_offset": 1275746978,
+   "previous_uncompressed_offset": 11025400320,
+   "previous_compressed_size": 10069,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 1275757047,
+   "current_uncompressed_offset": 11025465600,
+   "current_compressed_size": 9587,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch04",
+  {
+   "chrom_name": "SL2.50ch04",
+   "entry_num": 237686,
+   "position": 421,
+   "previous_compressed_offset": 1785628158,
+   "previous_uncompressed_offset": 15516076800,
+   "previous_compressed_size": 7348,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 1785635506,
+   "current_uncompressed_offset": 15516142080,
+   "current_compressed_size": 7545,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch05",
+  {
+   "chrom_name": "SL2.50ch05",
+   "entry_num": 308700,
+   "position": 364,
+   "previous_compressed_offset": 2332334979,
+   "previous_uncompressed_offset": 20151870720,
+   "previous_compressed_size": 8648,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 2332343627,
+   "current_uncompressed_offset": 20151936000,
+   "current_compressed_size": 6945,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch06",
+  {
+   "chrom_name": "SL2.50ch06",
+   "entry_num": 376120,
+   "position": 906,
+   "previous_compressed_offset": 2849178471,
+   "previous_uncompressed_offset": 24553048320,
+   "previous_compressed_size": 7985,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 2849186456,
+   "current_uncompressed_offset": 24553113600,
+   "current_compressed_size": 7013,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch07",
+  {
+   "chrom_name": "SL2.50ch07",
+   "entry_num": 426894,
+   "position": 4386,
+   "previous_compressed_offset": 3228432499,
+   "previous_uncompressed_offset": 27867575040,
+   "previous_compressed_size": 11197,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 3228443696,
+   "current_uncompressed_offset": 27867640320,
+   "current_compressed_size": 9569,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch08",
+  {
+   "chrom_name": "SL2.50ch08",
+   "entry_num": 494723,
+   "position": 264,
+   "previous_compressed_offset": 3746906173,
+   "previous_uncompressed_offset": 32295452160,
+   "previous_compressed_size": 7499,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 3746913672,
+   "current_uncompressed_offset": 32295517440,
+   "current_compressed_size": 7620,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch09",
+  {
+   "chrom_name": "SL2.50ch09",
+   "entry_num": 558765,
+   "position": 475,
+   "previous_compressed_offset": 4232746009,
+   "previous_uncompressed_offset": 36476113920,
+   "previous_compressed_size": 9661,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 4232755670,
+   "current_uncompressed_offset": 36476179200,
+   "current_compressed_size": 10765,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch10",
+  {
+   "chrom_name": "SL2.50ch10",
+   "entry_num": 628226,
+   "position": 3302,
+   "previous_compressed_offset": 4766703001,
+   "previous_uncompressed_offset": 41010528000,
+   "previous_compressed_size": 9642,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 4766712643,
+   "current_uncompressed_offset": 41010593280,
+   "current_compressed_size": 8206,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch11",
+  {
+   "chrom_name": "SL2.50ch11",
+   "entry_num": 693654,
+   "position": 657,
+   "previous_compressed_offset": 5261120137,
+   "previous_uncompressed_offset": 45281667840,
+   "previous_compressed_size": 9425,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 5261129562,
+   "current_uncompressed_offset": 45281733120,
+   "current_compressed_size": 7782,
+   "current_uncompressed_size": 65280
+  }
+ ],
+ [
+  "SL2.50ch12",
+  {
+   "chrom_name": "SL2.50ch12",
+   "entry_num": 746961,
+   "position": 177,
+   "previous_compressed_offset": 5667221494,
+   "previous_uncompressed_offset": 48761548800,
+   "previous_compressed_size": 7079,
+   "previous_uncompressed_size": 65280,
+   "current_compressed_offset": 5667228573,
+   "current_uncompressed_offset": 48761614080,
+   "current_compressed_size": 7184,
+   "current_uncompressed_size": 65280
+  }
+ ]
+]

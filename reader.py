@@ -1910,11 +1910,11 @@ class BGzip():
 
     def _save(self):
         print(f"saving gzj to {self.gzj_file}")
-        json.dump(self._data, open(self.gzj_file, 'wt'), indent=1)
+        json.dump(list(self._data.items()), open(self.gzj_file, 'wt'), indent=1)
 
     def _load(self):
         print(f"reading gzj from {self.gzj_file}")
-        self._data = json.load(open(self.gzj_file, 'rt'))
+        self._data = OrderedDict(json.load(open(self.gzj_file, 'rt')))
 
     def _parse_gzi(self):
         print(f"reading gzi from {self.gzi_file}")
@@ -1982,8 +1982,8 @@ class BGzip():
             previous_uncompressed_block_text = None
 
             while entry_num < number_entries:
-                if step != 1:
-                    print(f"  entry_num {entry_num:12,d} step {step:12,d} narrowing {narrowing}")
+                # if step != 1:
+                #     print(f"  entry_num {entry_num:12,d} step {step:12,d} narrowing {narrowing}")
 
                 (
                     _,
@@ -2053,14 +2053,12 @@ class BGzip():
                                 narrowing       = False
 
                             else:
-                                print(f"overstepped chromosome {last_chrom_name} into {new_chrom_name} - narrowing {narrowing} - step {step:12,d} - entry_num {entry_num - 1:12,d} - new_position {new_position:12,d}")
+                                # print(f"overstepped chromosome {last_chrom_name} into {new_chrom_name} - narrowing {narrowing} - step {step:12,d} - entry_num {entry_num - 1:12,d} - new_position {new_position:12,d}")
                                 entry_num   -= step
                                 narrowing    = True
                                 step         = 1
                             entry_num   += step
 
-
-    
     def _get_first_contig(self,
             gzip_fhd                        : typing.IO,
             entry_num                       : int,
@@ -2110,13 +2108,13 @@ class BGzip():
 
             firstNewLine  = uncompressed_block_text.find("\n", firstNewLine+1)
             if firstNewLine == -1:
-                print("no firstNewLine")
+                # print("no firstNewLine")
                 error = True
                 break
 
             secondNewLine = uncompressed_block_text.find("\n", firstNewLine+1)
             if secondNewLine == -1:
-                print("no secondNewLine")
+                # print("no secondNewLine")
                 # firstNewLine += 1
                 error  = True
                 break
@@ -2199,6 +2197,7 @@ class BGzip():
                 print(f"updated chromosome {chrom_name} from entry_num {self._data[chrom_name]['entry_num']:12,d} position {self._data[chrom_name]['position']:12,d} to entry_num {entry_num:12,d} position {position:12,d}")
 
             self._data[chrom_name] = {
+                "chrom_name"                     : chrom_name,
                 "entry_num"                      : entry_num,
                 "position"                       : position,
                 
@@ -2759,8 +2758,8 @@ def main():
         chromosome_names = bgzip.chromosomes
         chromosome_count = len(chromosome_names)
         print(f"{chromosome_count:12,d} chromosomes found")
-        for chromosome_name in chromosome_names:
-            print("\t", chromosome_name)
+        for pos, chromosome_name in enumerate(chromosome_names):
+            print(f"\t{pos}\t{chromosome_name}")
         return
 
     rename_dict = None
