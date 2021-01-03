@@ -1197,14 +1197,15 @@ class Genome():
         self.chromosome_names = bgzip.chromosomes
         self.chromosome_count = len(self.chromosome_names)
 
+        if DEBUG:
+            self.chromosome_names = self.chromosome_names[:DEBUG_MAX_CHROM]
+            self.chromosome_count = len(self.chromosome_names)
+
         mp.set_start_method('spawn')
 
         results = [None] * len(self.chromosome_names)
         with mp.Pool(processes=threads) as pool:
             for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
-                if DEBUG:
-                    if chromosome_order >= DEBUG_MAX_CHROM:
-                        break
 
                 chromosome = Chromosome(
                     vcf_name              = self.vcf_name,
@@ -1272,10 +1273,6 @@ class Genome():
 
 
         for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
-            if DEBUG:
-                if chromosome_order >= DEBUG_MAX_CHROM:
-                    break
-
             print(f"loading {chromosome_name}")
 
             chromosome_exists, _, chromosome = self.check_chromosome(chromosome_name, METRIC_RAW_NAME)
@@ -2724,9 +2721,9 @@ parser.add_argument('--bin-size'            , '-b', nargs='?', default=DEFAULT_B
 parser.add_argument('--threads'             , '-t', nargs='?', default=DEFAULT_THREADS , type=int, metavar="THREADS"   , help=f'Number of threads [{DEFAULT_THREADS}]')
 parser.add_argument('--metric'              , '-m', nargs='?', default=DEFAULT_METRIC  , type=str, metavar="METRIC"    , help='Metric [{DEFAULT_METRIC}]')
 parser.add_argument('--rename-tsv'          , '-r', nargs='?', default=None            , type=str, metavar="RENAME-TSV", help='TSV to rename sample names')
-parser.add_argument('--create-if-not-exists', action='store_true')
-parser.add_argument('--index-only'          , action='store_true')
-parser.add_argument('--debug'               , action='store_true')
+parser.add_argument('--create-if-not-exists', action='store_true', help="Create database if does not exiss")
+parser.add_argument('--index-only'          , action='store_true', help="Index GZ file and exit")
+parser.add_argument('--debug'               , action='store_true', help="debug mode")
 parser.add_argument('--version'             , action='version', version=f'{__name} {__version__}')
 parser.add_argument('filename'              , type=str, metavar="FILENAME", help="VCF BGZip filename")
 
@@ -2745,7 +2742,7 @@ def main():
     print(f"{'Bin Size'            :20s}: {bin_size:7,d}")
     print(f"{'Metric'              :20s}: {metric}")
     print(f"{'Threads'             :20s}: {threads:7,d}")
-    print(f"{'rename_tsv'          :20s}: {rename_tsv}")
+    print(f"{'Rename TSV'          :20s}: {rename_tsv}")
     print(f"{'Create if Not Exists':20s}: {create_if_not_exists}")
     print(f"{'Index Only'          :20s}: {index_only}")
     print(f"{'Debug'               :20s}: {debug}")

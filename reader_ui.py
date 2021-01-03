@@ -18,8 +18,10 @@ from pscript import RawJS
 
 import reader
 
-DEBUG       = True
-MIN_WIDTH   = 500
+DEBUG                 = True
+MIN_WIDTH             = 800
+FONT_SIZE             = 12
+FONT_SIZE_MIN_DISPLAY = 10
 
 color_maps = {
     'Perceptually Uniform Sequential': [
@@ -99,27 +101,30 @@ def get_color_maps(map_name, min_val=0.0, max_val=1.0, levels=256, bad='pink', o
 
 
 class Graph(flx.CanvasWidget):
-    CSS = """
-        .flx-Drawing {
+    CSS = f"""
+        .flx-Drawing {{
             background: #FFF;
             border: 1px solid #000;
-        }
-        .flx-Graph {
+        }}
+        .flx-Graph {{
             width: 100% !important;
             height: 100% !important;
             overflow: scroll;
-        }
-        .graph {
-            top: 35px;
-        }
+        }}
+        .graph {{
+            top: {3*FONT_SIZE}px;
+            left: {FONT_SIZE//2}px;
+            position: absolute;
+        }}
     """
 
-    def init(self, parent):
+    def init(self):
         super().init()
 
         self.set_capture_wheel(False)
         # self.apply_style('overflow: scroll;')  # enable scrolling
         self.ctx = self.node.getContext('2d')
+        self.node.id = "plot"
         self.set_css_class("graph")
 
     @flx.action
@@ -129,19 +134,34 @@ class Graph(flx.CanvasWidget):
         for node in [self.node]:
         # for node in [self.outernode, self.node]:
             if node:
-                node.setAttribute("width" , f"{width}px")
-                node.setAttribute("height", f"{height}px")
-                node.style["width"]       = f"{width}px"
-                node.style["height"]      = f"{height}px"
-                node.style["min-width"]   = f"{width}px"
-                node.style["min-height"]  = f"{height}px"
-                node.style["max-width"]   = f"{width}px"
-                node.style["max-height"]  = f"{height}px"
+                node.setAttribute("width" , f"{width  + 2*FONT_SIZE}px")
+                node.setAttribute("height", f"{height + 2*FONT_SIZE}px")
+                node.style["width"]       = f"{width  + 2*FONT_SIZE}px"
+                node.style["height"]      = f"{height + 2*FONT_SIZE}px"
+                node.style["min-width"]   = f"{width  + 2*FONT_SIZE}px"
+                node.style["min-height"]  = f"{height + 2*FONT_SIZE}px"
+                node.style["max-width"]   = f"{width  + 2*FONT_SIZE}px"
+                node.style["max-height"]  = f"{height + 2*FONT_SIZE}px"
 
         if hasattr(self, "ctx"):
             print("Graph :: resizing canvas", width, height)
             self.ctx.width  = width
             self.ctx.height = height
+
+    @flx.action
+    def reset(self, zero=True):
+        print("Graph.reset", zero)
+        if hasattr(self.ctx, 'self.width'):
+            print("Graph.reset :: clearing")
+            self.ctx.clearRect(
+                0,
+                0,
+                self.ctx.width,
+                self.ctx.height
+            )
+        if zero:
+            print("Graph.reset :: zeroing")
+            self.resize(0, 0)
 
     @flx.action
     def set_points(self, coord_data):
@@ -194,8 +214,8 @@ class Graph(flx.CanvasWidget):
 
         ctx                    = self.ctx
         
-        min_display_font       = 10
-        font_size              = 12
+        min_display_font       = FONT_SIZE_MIN_DISPLAY
+        font_size              = FONT_SIZE
         font_height            = font_size
         font_width             = font_size * 0.48 #https://www.lifewire.com/aspect-ratio-table-common-fonts-3467385
         header_lines           = 7 + 2
@@ -227,6 +247,9 @@ class Graph(flx.CanvasWidget):
         width_eff              = start_x + num_bins    * font_height + font_height
         if width_eff < MIN_WIDTH:
             width_eff = MIN_WIDTH
+
+        height_eff = height_eff // 1 + (0 if (height_eff // 1 == height_eff) else 1)
+        width_eff  = width_eff  // 1 + (0 if (width_eff  // 1 == width_eff ) else 1)
         print(f"Graph.set_points :: coord_data :: height_eff             {height_eff}")
         print(f"Graph.set_points :: coord_data :: width_eff              {width_eff}")
 
@@ -429,21 +452,6 @@ class Graph(flx.CanvasWidget):
                     ctx.stroke()
             print(f"Graph :: done")
 
-    @flx.action
-    def reset(self, zero=True):
-        print("Graph.reset", zero)
-        if hasattr(self.ctx, 'self.width'):
-            print("Graph.reset :: clearing")
-            self.ctx.clearRect(
-                0,
-                0,
-                self.ctx.width,
-                self.ctx.height
-            )
-        if zero:
-            print("Graph.reset :: zeroing")
-            self.resize(0, 0)
-
 
 
 class Forms(flx.Widget):
@@ -565,9 +573,16 @@ class Forms(flx.Widget):
 
     def _download_image(self, *ev):
         print("_download_image")
-        # var canvas = document.getElementById("mycanvas");
-        #     var img    = canvas.toDataURL("image/png");
-        #     document.write('<img src="'+img+'"/>');
+        canvas = self._getElementById("plot")
+        img    = canvas.toDataURL("image/png")
+
+        link = self._getElementById('link')
+        link.setAttribute('download', 'plot.png')
+        link.setAttribute('href', img.replace("image/png", "image/octet-stream"))
+        link.click()
+
+        # window.document.write('<img src="'+img+'"/>')
+        # window.location.href=img.replace("image/png", "image/octet-stream")
 
     def _render_dom(self):
         print("Forms._render_dom")
@@ -622,9 +637,8 @@ class Forms(flx.Widget):
             els += [self.sel_colors_el]
 
         _download_image    = self._download_image
-        btn_download_image = _cel('button', {"class": "btn btn_download", "onclick": _download_image}, "Download")
+        btn_download_image = _cel('button', {"class": "btn btn_download", "onclick": _download_image}, "Download", _cel("a", {"id": "link"}, ""))
         els += [btn_download_image]
-
         # for k,v in [
         #         ["Genome"    , self.genome    ],
         #         ['Bin Width' , self.bin_width ],

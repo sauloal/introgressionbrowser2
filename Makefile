@@ -24,8 +24,9 @@ help:
 	@echo "tree"
 	@echo ""
 	@echo "runs"
-	@echo "  data/150_VCFs_2.50.tar.gz_ib"
-	@echo "  data/360_merged_2.50.vcf.gz_ib"
+	@echo "  data/150_VCFs_2.50.tar.gz_ib (150)"
+	@echo "  data/360_merged_2.50.vcf.gz_ib (360)"
+	@echo "  data/annotated_tomato_150.vcf.gz_ib (anno)"
 	@echo ""
 	@echo "examples"
 	@echo "  data/150_VCFs_2.50.tar.gz"
@@ -58,6 +59,12 @@ data/360_merged_2.50.vcf.gz_ib: data/360_merged_2.50.vcf.gz
 
 data/annotated_tomato_150.vcf.gz_ib: data/annotated_tomato_150.vcf.gz data/annotated_tomato_150.vcf.gz.tsv
 	$(PYTHON) ./reader.py --rename-tsv data/annotated_tomato_150.vcf.gz.tsv data/annotated_tomato_150.vcf.gz
+
+.PHONY: 150 360 anno
+150: data/150_VCFs_2.50.tar.gz_ib
+360: data/360_merged_2.50.vcf.gz_ib
+anno: data/annotated_tomato_150.vcf.gz_ib
+
 
 
 .PHONY: examples
