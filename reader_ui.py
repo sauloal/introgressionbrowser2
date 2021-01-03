@@ -123,9 +123,100 @@ class Graph(flx.CanvasWidget):
 
         self.set_capture_wheel(False)
         # self.apply_style('overflow: scroll;')  # enable scrolling
-        self.ctx = self.node.getContext('2d')
-        self.node.id = "plot"
+        self.ctx          = self.node.getContext('2d')
+        self.node.id      = "plot"
+        self.node.onclick = self.onclick
         self.set_css_class("graph")
+
+        self.y_start     = None
+        self.x_start     = None
+        self.y_max       = None
+        self.x_max       = None
+
+        self.genome_name       = None
+        self.metric            = None
+        self.chromosome_name   = None
+        self.sample_name       = None
+        self.order             = None
+        self.bin_width          = None
+        self.font_height       = None
+
+    def onclick(self, ev):
+        ev_type     = ev.type
+        ev_clientX  = ev.clientX
+        ev_clientY  = ev.clientY
+        ev_offsetX  = ev.offsetX
+        ev_offsetY  = ev.offsetY
+        ev_shiftKey = ev.shiftKey
+        ev_ctrlKey  = ev.ctrlKey
+
+        # print("ev_type    ", ev_type    )
+        # print("ev_clientX ", ev_clientX )
+        # print("ev_clientY ", ev_clientY )
+        # print("ev_offsetX ", ev_offsetX )
+        # print("ev_offsetY ", ev_offsetY )
+        # print("ev_shiftKey", ev_shiftKey)
+        # print("ev_ctrlKey ", ev_ctrlKey )
+
+        if ev_type == "click":
+            self.click(ev_offsetX, ev_offsetY, ev_shiftKey, ev_ctrlKey)
+
+    def click(self, x, y, shiftKey, ctrlKey):
+        print("type    ", "click"    )
+        print("X       ", x )
+        print("Y       ", y )
+        print("shiftKey", shiftKey)
+        print("ctrlKey ", ctrlKey )
+
+        if  (
+            self.x_start          is None or
+            self.x_max            is None or
+            self.y_start          is None or
+            self.y_max            is None or
+            self.font_height      is None or
+            self.genome_name      is None or
+            self.metric           is None or
+            self.chromosome_name  is None or
+            self.sample_name      is None or
+            self.order            is None or
+            self.bin_width        is None
+        ):
+            return
+
+        if (
+            x >= self.x_start and
+            x <= self.x_max   and
+            y >= self.y_start and
+            y <= self.y_max
+        ):
+            x_off        = x     -  self.x_start
+            y_off        = y     -  self.y_start
+            bin_num      = x_off // self.font_height
+            sample_num   = y_off // self.font_height
+
+            print(
+                "VALID ::"   ,
+                "\n\tsample_num " , sample_num  ,
+                "\n\tbin_num"     , bin_num
+            )
+
+            genome_name     = self.genome_name
+            metric          = self.metric
+            chromosome_name = self.chromosome_name
+            sample_name     = self.sample_name
+            order           = self.order
+            bin_width       = self.bin_width
+
+            self.root.ui_show_info(
+                genome_name    ,
+                bin_width      ,
+                metric         ,
+                chromosome_name,
+                sample_name    ,
+                order          ,
+                bin_num        ,
+                sample_num
+            )
 
     @flx.action
     def resize(self, width: int, height: int):
@@ -151,6 +242,20 @@ class Graph(flx.CanvasWidget):
     @flx.action
     def reset(self, zero=True):
         print("Graph.reset", zero)
+
+        self.y_start           = None
+        self.x_start           = None
+        self.y_max             = None
+        self.x_max             = None
+
+        self.genome_name       = None
+        self.metric            = None
+        self.chromosome_name   = None
+        self.sample_name       = None
+        self.order             = None
+        self.bin_width         = None
+        self.font_height       = None
+
         if hasattr(self.ctx, 'self.width'):
             print("Graph.reset :: clearing")
             self.ctx.clearRect(
@@ -167,21 +272,25 @@ class Graph(flx.CanvasWidget):
     def set_points(self, coord_data):
         print(f"Graph.set_points :: coord_data")
 
+        genome_name     = coord_data["genome_name"    ]
         matrix_min      = coord_data["min"            ]
         matrix_max      = coord_data["max"            ]
         img_shape       = coord_data["shape"          ]
         imgd            = coord_data["data"           ]
         samplenames     = coord_data["samplenames"    ]
-        binwidth        = coord_data["binwidth"       ]
+        bin_width       = coord_data["bin_width"      ]
+        bin_width_v     = coord_data["bin_width_v"    ]
         binnames        = coord_data["binnames"       ]
         chromosome_name = coord_data["chromosome_name"]
         vcf_name        = coord_data["vcf_name"       ]
         bin_width       = coord_data["bin_width"      ]
         metric          = coord_data["metric"         ]
         reference_name  = coord_data["sample_name"    ]
+        order           = coord_data["order"          ]
         snps            = coord_data["snps"           ]
         first_position  = coord_data["first_position" ]
         last_position   = coord_data["last_position"  ]
+        # matrix          = coord_data["matrix"         ]
 
         colorlist       = coord_data["colorlist"      ]
         colorrange      = coord_data["colorrange"     ]
@@ -190,6 +299,7 @@ class Graph(flx.CanvasWidget):
 
         bin_colorrange  = coord_data["bin_colorrange" ]
         bin_snps_color  = coord_data["bin_snps_color" ]
+        # bin_snps_v      = coord_data["bin_snps_v"     ]
         bin_snps        = coord_data["bin_snps"       ]
         bin_snps_min    = coord_data["bin_snps_min"   ]
         bin_snps_max    = coord_data["bin_snps_max"   ]
@@ -203,7 +313,7 @@ class Graph(flx.CanvasWidget):
         print(f"Graph.set_points :: coord_data :: img_shape              {img_shape}")
         print(f"Graph.set_points :: coord_data :: num_bins               {num_bins}")
         print(f"Graph.set_points :: coord_data :: num_samples            {num_samples}")
-        print(f"Graph.set_points :: coord_data :: binwidth               {binwidth}")
+        print(f"Graph.set_points :: coord_data :: bin_width              {bin_width}")
         print(f"Graph.set_points :: coord_data :: binnames               {len(binnames)}")
         # print(f"Graph.set_points :: coord_data :: rgba       {rgba}")
         # print(f"Graph.set_points :: coord_data :: imgd       {imgd}")
@@ -220,6 +330,14 @@ class Graph(flx.CanvasWidget):
         font_width             = font_size * 0.48 #https://www.lifewire.com/aspect-ratio-table-common-fonts-3467385
         header_lines           = 7 + 2
 
+        self.genome_name       = genome_name
+        self.metric            = metric
+        self.chromosome_name   = chromosome_name
+        self.sample_name       = reference_name
+        self.order             = order
+        self.bin_width         = bin_width_v
+        self.font_height       = font_height
+
         print(f"Graph.set_points :: coord_data :: font_size              {font_size}")
         print(f"Graph.set_points :: coord_data :: font_height            {font_height}")
         print(f"Graph.set_points :: coord_data :: font_width             {font_width}")
@@ -229,17 +347,22 @@ class Graph(flx.CanvasWidget):
         max_bin_name_size      = max_bin_name_length    * font_width
         max_bin_name_offset    = max_bin_name_size            + font_width + header_height
         max_bin_name_offset_h  = max_bin_name_size      * 1.2 + font_width + header_height
+
         print(f"Graph.set_points :: coord_data :: max_bin_name_length    {max_bin_name_length}")
         print(f"Graph.set_points :: coord_data :: max_bin_name_size      {max_bin_name_size}")
         print(f"Graph.set_points :: coord_data :: max_bin_name_offset    {max_bin_name_offset}")
 
         max_sample_name_length = max([len(x) for x in samplenames])
         max_sample_name_size   = max_sample_name_length * font_width
+
         print(f"Graph.set_points :: coord_data :: max_sample_name_length {max_sample_name_length}")
         print(f"Graph.set_points :: coord_data :: max_sample_name_size   {max_sample_name_size}")
 
         start_y                = (max_bin_name_offset  * (font_size >= min_display_font)) +   font_width
         start_x                = (max_sample_name_size * (font_size >= min_display_font)) + 4*font_width
+        self.y_start           = start_y
+        self.x_start           = start_x
+
         print(f"Graph.set_points :: coord_data :: start_y                {start_y}")
         print(f"Graph.set_points :: coord_data :: start_x                {start_x}")
 
@@ -248,12 +371,13 @@ class Graph(flx.CanvasWidget):
         if width_eff < MIN_WIDTH:
             width_eff = MIN_WIDTH
 
-        height_eff = height_eff // 1 + (0 if (height_eff // 1 == height_eff) else 1)
-        width_eff  = width_eff  // 1 + (0 if (width_eff  // 1 == width_eff ) else 1)
+        height_eff             = height_eff // 1 + (0 if (height_eff // 1 == height_eff) else 1)
+        width_eff              = width_eff  // 1 + (0 if (width_eff  // 1 == width_eff ) else 1)
+
         print(f"Graph.set_points :: coord_data :: height_eff             {height_eff}")
         print(f"Graph.set_points :: coord_data :: width_eff              {width_eff}")
+        print(f"Graph.set_points :: resize     :: width {width_eff} height {height_eff}")
 
-        print(f"Graph.set_points :: resize :: width {width_eff} height {height_eff}")
         self.resize(width_eff, height_eff)
 
         ##
@@ -275,63 +399,78 @@ class Graph(flx.CanvasWidget):
             ctx.lineWidth   = 0
 
         ##
-        ## Write title
+        ## Write Labels
         ##
         if font_size >= min_display_font:
-            print(f"Graph.set_points :: Writing Title")
+            print(f"Graph.set_points :: Writing Labels")
 
             ctx.font        = f"{font_size}px Courier New"
             ctx.strokeStyle = 'black'
             ctx.fillStyle   = 'black'
 
             ##
-            ## Bin Names
+            ## Write Labels :: Bin Names
             ##
-            ctx.save()
-            ctx.translate(start_x + font_height, max_bin_name_offset_h)
-            ctx.rotate(-0.5*math.pi)
-            for bin_pos, bin_name in enumerate(binnames):
-                text_x = 3 * font_height
-                text_y = (bin_pos * font_height)
-                ctx.fillText(bin_name, text_x + (2.5*font_height), text_y)
+            if True:
+                print(f"Graph.set_points :: Writing Labels :: Writing Title")
 
                 ctx.save()
-                color_pos       = bin_snps_color[bin_pos]
-                color           = colorlist[color_pos]
-                ctx.strokeStyle = color
-                ctx.fillStyle   = color
-                ctx.beginPath()
-                ctx.fillRect(
-                    text_x + font_height,
-                    text_y - font_height,
-                    font_height,
-                    font_height
-                )
-                ctx.stroke()
+                ctx.translate(start_x + font_height, max_bin_name_offset_h)
+                ctx.rotate(-0.5*math.pi)
+                for bin_pos, bin_name in enumerate(binnames):
+                    text_x = 3 * font_height
+                    text_y = (bin_pos * font_height)
+                    ctx.fillText(bin_name, text_x + (2.5*font_height), text_y)
+
+                    ctx.save()
+                    color_pos       = bin_snps_color[bin_pos]
+                    color           = colorlist[color_pos]
+                    ctx.strokeStyle = color
+                    ctx.fillStyle   = color
+                    ctx.beginPath()
+                    ctx.fillRect(
+                        text_x + font_height,
+                        text_y - font_height,
+                        font_height,
+                        font_height
+                    )
+                    ctx.stroke()
+                    ctx.restore()
                 ctx.restore()
-            ctx.restore()
 
 
             ##
-            ## Sample names
+            ## Write Labels :: Sample Names
             ##
-            # ctx.font        = f"{font_size}px Arial"
-            # ctx.fillStyle   = "black"
-            # ctx.strokeStyle = "black"
-            # ctx.textAlign   = "left"
-            for sample_pos, sample_name in enumerate(samplenames):
-                text_x = font_width
-                text_y = (sample_pos * font_height) + start_y + font_height
-                ctx.fillText(sample_name, text_x, text_y)
+            if True:
+                print(f"Graph.set_points :: Writing Labels :: Writing Title")
+                # ctx.font        = f"{font_size}px Arial"
+                # ctx.fillStyle   = "black"
+                # ctx.strokeStyle = "black"
+                # ctx.textAlign   = "left"
+                for sample_pos, sample_name in enumerate(samplenames):
+                    text_x = font_width
+                    text_y = (sample_pos * font_height) + start_y + font_height
+                    ctx.fillText(sample_name, text_x, text_y)
 
             ##
-            ## Header
-            ##   header_lines
+            ## Write Labels :: Header
+            ##
             if True:
                 print(f"Graph.set_points :: Writing Header")
                 ctx.save()
 
-                title_max_len    = max([len(v) for v in [chromosome_name, vcf_name, bin_width, metric, reference_name, first_position, last_position, snps]])
+                title_max_len    = max([len(v) for v in [
+                    chromosome_name,
+                    vcf_name       ,
+                    bin_width      ,
+                    metric         ,
+                    reference_name ,
+                    first_position ,
+                    last_position  ,
+                    snps           ,
+                    order
+                ]])
                 title_fmt        = "{:"+str(title_max_len)+"}"
 
                 text_x  = font_width
@@ -341,32 +480,35 @@ class Graph(flx.CanvasWidget):
                 text_x  = font_width
                 text_y  = 2 * font_height
                 ctx.fillText(("Chromosome    : "+title_fmt).format(chromosome_name  ), text_x, text_y)
-                text_x += (title_max_len + 16) * font_width
+                text_x += (title_max_len + 16 + 2) * font_width
                 text_y  = 2 * font_height
                 ctx.fillText(("Bin Width     : "+title_fmt).format(bin_width        ), text_x, text_y)
 
                 text_x  = font_width
                 text_y  = 3 * font_height
                 ctx.fillText(("Metric        : "+title_fmt).format(metric           ), text_x, text_y)
-                text_x += (title_max_len + 16) * font_width
+                text_x += (title_max_len + 16 + 2) * font_width
                 text_y  = 3 * font_height
                 ctx.fillText(("Reference     : "+title_fmt).format(reference_name   ), text_x, text_y)
 
                 text_x  = font_width
                 text_y  = 4 * font_height
                 ctx.fillText(("First Position: "+title_fmt).format(first_position   ), text_x, text_y)
-                text_x += (title_max_len + 16) * font_width
+                text_x += (title_max_len + 16 + 2) * font_width
                 text_y  = 4 * font_height
                 ctx.fillText(("Last Position : "+title_fmt).format(last_position    ), text_x, text_y)
 
                 text_x  = font_width
                 text_y  = 5 * font_height
                 ctx.fillText(("# SNPs        : "+title_fmt).format(snps             ), text_x, text_y)
+                text_x += (title_max_len + 16 + 2) * font_width
+                text_y  = 5 * font_height
+                ctx.fillText(("Order         : "+title_fmt).format(order            ), text_x, text_y)
 
                 ctx.restore()
 
             ##
-            ## Color list
+            ## Write Labels :: Color list
             ##
             if True:
                 print(f"Graph.set_points :: Writing Color List")
@@ -395,7 +537,7 @@ class Graph(flx.CanvasWidget):
                 ctx.restore()
 
             ##
-            ## Bin list
+            ## Write Labels :: Bin list
             ##
             if True:
                 # bin_colorrange  = coord_data["bin_colorrange" ] #color per bin
@@ -435,6 +577,10 @@ class Graph(flx.CanvasWidget):
             print(f"Graph.set_points :: setting")
             print(f"Graph.set_points :: setting :: imgd.length {imgd.length}")
             print(f"Graph.set_points :: setting :: imgd[0].length {imgd[0].length}")
+
+            self.y_max   = start_y + num_samples * font_height
+            self.x_max   = start_x + num_bins    * font_height
+
             for x in range(num_bins):
                 col = imgd[x]
                 for y in range(num_samples):
@@ -451,6 +597,48 @@ class Graph(flx.CanvasWidget):
                     )
                     ctx.stroke()
             print(f"Graph :: done")
+
+    @flx.action
+    def show_info(self, data):
+        print(f"Graph.show_info :: data")
+        # print(f"Graph.show_info :: data", JSON.stringify(data))
+
+        genome_name  = data["genome_name"] # 370 merged 2.50
+        bin_width    = data["bin_width"  ] # 250000
+        metric       = data["metric"     ] # average_jaccard
+        order        = data["order"      ] # optimal_leaf_ordering
+        bin_num      = data["bin_num"    ] # 12
+        sample_num   = data["sample_num" ] # 11
+
+        bin_snps     = data["bin_snps"    ]
+        sample_name  = data["sample_name" ]
+        distance_bin = data["distance_bin"]
+        distance_sam = data["distance_sam"]
+
+        bin_start    = bin_width * (bin_num + 0)
+        bin_end      = bin_width * (bin_num + 1)
+
+        print(f"Graph.show_info :: data"    ,
+            "\n\tgenome_name ", genome_name ,
+            "\n\tbin_width   ", bin_width   ,
+            "\n\tmetric      ", metric      ,
+            "\n\torder       ", order       ,
+            "\n\tsample_num  ", sample_num  ,
+
+            "\n\tbin_snps    ", bin_snps    ,
+            "\n\tsample_name ", sample_name ,
+            "\n\tdistance_bin", distance_bin, len(distance_bin),
+            "\n\tdistance_sam", distance_sam, len(distance_sam),
+
+            "\n\tbin_num     ", bin_num     ,
+            "\n\tbin_start   ", bin_start   ,
+            "\n\tbin_end     ", bin_end     ,
+
+            # "\n\tsample_name" , sample_name ,
+            # "\n\tbin_snps"    , bin_snps    ,
+            # "\n\tdistance_bin", distance_bin,
+            # "\n\tdistance_sam", distance_sam
+        )
 
 
 
@@ -580,9 +768,6 @@ class Forms(flx.Widget):
         link.setAttribute('download', 'plot.png')
         link.setAttribute('href', img.replace("image/png", "image/octet-stream"))
         link.click()
-
-        # window.document.write('<img src="'+img+'"/>')
-        # window.location.href=img.replace("image/png", "image/octet-stream")
 
     def _render_dom(self):
         print("Forms._render_dom")
@@ -865,6 +1050,9 @@ class ChromosomeController(flx.PyComponent):
         super().init()
 
         self.chromosome                : reader.Chromosome = None
+        self.genome_name               : str = None
+        self.metric                    : str = None
+
         self.filename                  : str = "-"
 
         self.vcf_name                  : str = "-"
@@ -908,6 +1096,8 @@ class ChromosomeController(flx.PyComponent):
     def reset(self):
         print("ChromosomeController.reset")
         self.chromosome                = None
+        self.genome_name               = None
+        self.metric                    = None
 
         self.filename                  = "-"
     
@@ -969,12 +1159,41 @@ class ChromosomeController(flx.PyComponent):
             self.sample_count              = self.chromosome.sample_count
             self.sample_name               = "-"
 
-    def set_chromosome(self, chromosome: reader.Chromosome):
+            self.alignment                 = self.chromosome.alignmentNp.tolist()
+            self.position                  = self.chromosome.positionNp.tolist()
+
+    def matrix_sample(self, sample_name) -> np.ndarray:
+        return self.chromosome.matrix_sample(sample_name, metric=self.metric)
+
+    def matrix_bin(self, binNum: int) -> np.ndarray:
+        return self.chromosome.matrix_bin(binNum)
+
+    def matrix_bin_square(self, binNum: int) -> np.ndarray:
+        return self.chromosome.matrix_bin_square(binNum)
+
+    def matrix_bin_sample(self, binNum: int, sample_name: str) -> np.ndarray:
+        return self.chromosome.matrix_bin_sample(binNum, sample_name)
+
+    def matrix_bin_dist(self, binNum: int) -> np.ndarray:
+        return self.chromosome.matrix_bin_dist(binNum, metric=self.metric, dtype=self.matrix_dtype)
+
+    def matrix_bin_dist_square(self, binNum: int) -> np.ndarray:
+        return self.chromosome.matrix_bin_dist_square(binNum, self.metric)
+
+    def matrix_bin_dist_sample(self, binNum: int, sample_name: str) -> np.ndarray:
+        return self.chromosome.matrix_bin_dist_sample(binNum, sample_name, metric=self.metric)
+
+    def matrix_bin_dist_sample_square(self, binNum: int, sample_name: str) -> np.ndarray:
+        return self.chromosome.matrix_bin_dist_sample_square(binNum, sample_name, metric=self.metric)
+
+    def set_chromosome(self, chromosome: reader.Chromosome, genome_name: str):
         print("ChromosomeController.set_chromosome")
 
-        self.reset()
+        if self.chromosome != chromosome:
+            self.reset()
 
-        self.chromosome = chromosome
+            self.chromosome  = chromosome
+            self.genome_name = genome_name
 
         if self.chromosome is not None:
             self.update()
@@ -1049,6 +1268,83 @@ class ChromosomeController(flx.PyComponent):
         # self.acolor = acolor
         return cmap, acolor
 
+    def format_range(self):
+        def human_format(num, suffixes=[[' bp',0], ['Kbp',0], ['Mbp',2], ['Gbp',3], ['Tbp',4], ['Pbp',5]]):
+            # m = sum([abs(num/1000.0**x) >= 1 for x in range(1, len(suffixes))])
+            m = int(math.log10(num) // 3) if num > 0 else 0
+            return f'{num/1000.0**m:.{suffixes[m][1]}f}{suffixes[m][0]}'
+
+        res    = [None] * self.bin_count
+        d      = [None] * self.bin_count
+        res    = [None] * self.bin_count
+        bs     = [None] * self.bin_count
+        starts = [None] * self.bin_count
+        ends   = [None] * self.bin_count
+        snps   = [None] * self.bin_count
+        for b in range(self.bin_count):
+            s,e = b*self.bin_width, (b+1)*self.bin_width
+            s      = human_format(s)
+            e      = human_format(e)
+            n      = self.bin_snps[b]
+            d     [b] = [b,n,s,e]
+            bs    [b] = math.log10(b) if b != 0 else 1
+            snps  [b] = math.log10(n) if n != 0 else 1
+            starts[b] = len(s)
+            ends  [b] = len(e)
+
+        mbs = math.ceil(max(bs    ))
+        msn = math.ceil(max(snps  ))
+        mst = math.ceil(max(starts))
+        men = math.ceil(max(ends  ))
+
+        mbs += mbs // 3 + 1
+        msn += msn // 3 + 1
+
+        fmt = f"{{:{mbs},d}} | {{:{msn},d}} | {{:>{mst}s}}-{{:>{men}s}}"
+        # print("FMT", fmt)
+
+        for (b,n,s,e) in d:
+            res[b] = fmt.format(b,n,s,e)
+            # res[b] = f"{i+1:7,d}|{n:7,d}|{s}-{e}"
+            # bin_names = [f"{b+1:7,d} - {b*self.bin_width:12,d}-{(b+1)*self.bin_width:12,d}" for b in range(self.bin_count)]
+        max_res = max([len(r) for r in res])
+        fmt     = "{:<" + str(max_res) + "s}"
+        res     = [fmt.format(r) for r in res]
+
+        return res
+
+    def _get_ordered(self, order: str, sample_name: str):
+        matrix       = self.matrix_sample(sample_name)
+
+        # print(f"ChromosomeController.display :: np.nanmin(matrix)", np.nanmin(matrix))
+        # print(f"ChromosomeController.display :: np.nanmax(matrix)", np.nanmax(matrix))
+        matrix       = matrix.astype(np.float)
+        matrix_min   = float(np.nanmin(matrix))
+        matrix_max   = float(np.nanmax(matrix))
+        if matrix_min != matrix_max:
+            matrix[matrix == np.nanmin(matrix)] = None
+            matrix[matrix == np.nanmax(matrix)] = None
+            matrix_min = float(np.nanmin(matrix))
+
+            matrix_max = float(np.nanmax(matrix))
+
+        orderer = None
+        if   order is None or order == '-':
+            orderer = range(len(self.sample_names))
+        elif order == 'leaf_ordering':
+            orderer = self.chromosome.leaf_ordering
+        elif order == 'optimal_leaf_ordering':
+            orderer = self.chromosome.optimal_leaf_ordering
+        else:
+            raise ValueError(f"no such orderer {orderer}")
+
+        matrix       = matrix[:,orderer]
+        sample_names = [self.sample_names[s] for s in orderer]
+        # print("orderer", orderer)
+        # print("self.sample_names", self.sample_names)
+        # print("sample_names", sample_names)
+        return matrix_min, matrix_max, matrix, sample_names
+
     def display(self, order):
         print(f"ChromosomeController.display :: sample_name {self.sample_name} color_name {self.color_name}")
 
@@ -1069,18 +1365,6 @@ class ChromosomeController(flx.PyComponent):
             print(f"ChromosomeController.display :: INCOMPLETE")
         else:
             print(f"ChromosomeController.display :: displaying")
-            matrix     = self.matrix_sample(self.sample_name)
-            print(f"ChromosomeController.display :: matrix", matrix)
-            # print(f"ChromosomeController.display :: np.nanmin(matrix)", np.nanmin(matrix))
-            # print(f"ChromosomeController.display :: np.nanmax(matrix)", np.nanmax(matrix))
-            matrix     = matrix.astype(np.float)
-            matrix_min = float(np.nanmin(matrix))
-            matrix_max = float(np.nanmax(matrix))
-            if matrix_min != matrix_max:
-                matrix[matrix == np.nanmin(matrix)] = None
-                matrix[matrix == np.nanmax(matrix)] = None
-                matrix_min = float(np.nanmin(matrix))
-                matrix_max = float(np.nanmax(matrix))
 
             bin_snps_min = min(self.bin_snps)
             bin_snps_max = max(self.bin_snps)
@@ -1091,34 +1375,20 @@ class ChromosomeController(flx.PyComponent):
             # print("bin_snps_pro ", bin_snps_pro )
             # print(list(zip(self.bin_snps, bin_snps_pro)))
             bin_cmap, bin_acolor = self.gen_color(min_val=bin_snps_min, max_val=bin_snps_max)
-            bin_cmapg  = bin_cmap(self.bin_snps)
-            bin_cmapg  = bin_cmapg.tolist()
-            bin_acolor = bin_acolor.tolist()
+            bin_cmapg    = bin_cmap(self.bin_snps)
+            bin_cmapg    = bin_cmapg.tolist()
+            bin_acolor   = bin_acolor.tolist()
             # print("bin_cmapg", bin_cmapg)
 
-
-            order = 'optimal_leaf_ordering'
+            order   = 'optimal_leaf_ordering'
             print(f"ChromosomeController.display :: reordering: {order}")
-            orderer = None
-            if   order is None or order == '-':
-                orderer = range(len(self.sample_names))
-            elif order == 'leaf_ordering':
-                orderer = self.chromosome.leaf_ordering
-            elif order == 'optimal_leaf_ordering':
-                orderer = self.chromosome.optimal_leaf_ordering
-            else:
-                raise ValueError(f"no such orderer {orderer}")
-
-            matrix       = matrix[:,orderer]
-            sample_names = [self.sample_names[s] for s in orderer]
-            # print("orderer", orderer)
-            # print("self.sample_names", self.sample_names)
-            # print("sample_names", sample_names)
-
+            matrix_min, matrix_max, matrix, sample_names = self._get_ordered(order, self.sample_name)
+            # print(f"ChromosomeController.display :: matrix", matrix)
 
             # print(f"ChromosomeController.display :: matrix = {matrix}")
             print(f"ChromosomeController.display :: matrix max = {matrix_max}")
             print(f"ChromosomeController.display :: matrix min = {matrix_min}")
+
             assert matrix_max >= matrix_min, f"matrix_max {matrix_max} >= {matrix_min} matrix_min"
             self.set_min_max_val(matrix_min, matrix_max)
             self.set_color(min_val=matrix_min, max_val=matrix_max)
@@ -1130,6 +1400,8 @@ class ChromosomeController(flx.PyComponent):
             print(f"ChromosomeController.display :: img type   = {type(img)}")
             print(f"ChromosomeController.display :: bin_count  = {self.bin_count}")
             # print(f"ChromosomeController.display :: bin_count  = {self.bin_n}")
+
+            # matrixl   = matrix.tolist()
             imgd      = img.tolist()
             acolord   = self.acolor.tolist()
             colorlist = {}
@@ -1165,22 +1437,25 @@ class ChromosomeController(flx.PyComponent):
             bin_names = self.format_range()
             # bin_names = [f"{self.bin_snps[p]:7d}|{b}" for p, b in enumerate(bin_names)]
 
-
             print(f"ChromosomeController.display :: triggering")
 
             self.root.graph.set_points({
+                "genome_name"    : self.genome_name,
+
                 "min"            : matrix_min,
                 "max"            : matrix_max,
                 "shape"          : img.shape,
                 "data"           : imgd,
                 "samplenames"    : sample_names,
-                "binwidth"       : self.bin_width,
                 "binnames"       : bin_names,
                 "chromosome_name": self.chromosome_name,
                 "vcf_name"       : os.path.basename(self.vcf_name),
                 "bin_width"      : f"{self.bin_width:12,d}",
+                "bin_width_v"    : self.bin_width,
                 "metric"         : self.metric,
                 "sample_name"    : self.sample_name,
+                "order"          : order,
+                # "matrix"         : matrixl,
 
                 "snps"           : f"{self.chromosome_snps:12,d}",
                 "first_position" : f"{self.chromosome_first_position:12,d}",
@@ -1194,78 +1469,46 @@ class ChromosomeController(flx.PyComponent):
                 "bin_colorrange" : bin_acolor,    #colort per bin
                 "bin_snps_color" : bin_cmapg,     #color per snp number
                 "bin_snps"       : [f"{s:7,d}" for s in self.bin_snps], #snps per bin
+                # "bin_snps_v"     : self.bin_snps, #snps per bin
                 "bin_snps_min"   : f"{bin_snps_min:7,d}",
                 "bin_snps_max"   : f"{bin_snps_max:7,d}"
             })
+
             print(f"ChromosomeController.display :: done")
 
-    def format_range(self):
-        def human_format(num, suffixes=[[' bp',0], ['Kbp',0], ['Mbp',2], ['Gbp',3], ['Tbp',4], ['Pbp',5]]):
-            # m = sum([abs(num/1000.0**x) >= 1 for x in range(1, len(suffixes))])
-            m = int(math.log10(num) // 3) if num > 0 else 0
-            return f'{num/1000.0**m:.{suffixes[m][1]}f}{suffixes[m][0]}'
-
-        res    = [None] * self.bin_count
-        d      = [None] * self.bin_count
-        res    = [None] * self.bin_count
-        bs     = [None] * self.bin_count
-        starts = [None] * self.bin_count
-        ends   = [None] * self.bin_count
-        snps   = [None] * self.bin_count
-        for b in range(self.bin_count):
-            s,e = b*self.bin_width, (b+1)*self.bin_width
-            s      = human_format(s)
-            e      = human_format(e)
-            n      = self.bin_snps[b]
-            d     [b] = [b,n,s,e]
-            bs    [b] = math.log10(b) if b != 0 else 1
-            snps  [b] = math.log10(n) if n != 0 else 1
-            starts[b] = len(s)
-            ends  [b] = len(e)
+    def show_info(self, order: str, bin_num: int, sample_num: int):
+        print(f"ChromosomeController.show_info :: order {order} bin_num {bin_num} sample_num {sample_num}")
         
-        mbs = math.ceil(max(bs    ))
-        msn = math.ceil(max(snps  ))
-        mst = math.ceil(max(starts))
-        men = math.ceil(max(ends  ))
+        matrix_min, matrix_max, matrix, sample_names = self._get_ordered(order, self.sample_name)
 
-        mbs += mbs // 3 + 1
-        msn += msn // 3 + 1
+        matrixl      = matrix.tolist()
 
-        fmt = f"{{:{mbs},d}} | {{:{msn},d}} | {{:>{mst}s}}-{{:>{men}s}}"
-        # print("FMT", fmt)
+        bin_snps     = self.bin_snps[bin_num]
+        distance_bin = matrixl[bin_num]
+        distance_sam = [matrixl[b][sample_num] for b in range(len(matrixl))]
 
-        for (b,n,s,e) in d:
-            res[b] = fmt.format(b,n,s,e)
-            # res[b] = f"{i+1:7,d}|{n:7,d}|{s}-{e}"
-            # bin_names = [f"{b+1:7,d} - {b*self.bin_width:12,d}-{(b+1)*self.bin_width:12,d}" for b in range(self.bin_count)]
-        max_res = max([len(r) for r in res])
-        fmt     = "{:<" + str(max_res) + "s}"
-        res     = [fmt.format(r) for r in res]
-        return res
+        # alignment = self.alignment
+        # position  = self.position
 
-    def matrix_sample(self, sample_name) -> np.ndarray:
-        return self.chromosome.matrix_sample(sample_name, metric=self.metric)
+        # # self.alignmentNp              = np.zeros((self.bin_count, self.sample_count), np.unicode_)
+        # # self.positionNp               = np.zeros((self.bin_count, self.bin_snps_max), self.type_positions)
 
-    def matrix_bin(self, binNum: int) -> np.ndarray:
-        return self.chromosome.matrix_bin(binNum)
+        # self.chromosome.show_info(order, bin_num, sample_num)
 
-    def matrix_bin_square(self, binNum: int) -> np.ndarray:
-        return self.chromosome.matrix_bin_square(binNum)
+        self.root.graph.show_info({
+            "genome_name" : self.genome_name,
+            "bin_width"   : self.bin_width,
+            "metric"      : self.metric,
 
-    def matrix_bin_sample(self, binNum: int, sample_name: str) -> np.ndarray:
-        return self.chromosome.matrix_bin_sample(binNum, sample_name)
+            "bin_snps"    : bin_snps,
+            "sample_name" : self.sample_name,
+            "distance_bin": distance_bin,
+            "distance_sam": distance_sam,
 
-    def matrix_bin_dist(self, binNum: int) -> np.ndarray:
-        return self.chromosome.matrix_bin_dist(binNum, metric=self.metric, dtype=self.matrix_dtype)
-
-    def matrix_bin_dist_square(self, binNum: int) -> np.ndarray:
-        return self.chromosome.matrix_bin_dist_square(binNum, self.metric)
-
-    def matrix_bin_dist_sample(self, binNum: int, sample_name: str) -> np.ndarray:
-        return self.chromosome.matrix_bin_dist_sample(binNum, sample_name, metric=self.metric)
-
-    def matrix_bin_dist_sample_square(self, binNum: int, sample_name: str) -> np.ndarray:
-        return self.chromosome.matrix_bin_dist_sample_square(binNum, sample_name, metric=self.metric)
+            "order"       : order,
+            "bin_num"     : bin_num,
+            "sample_num"  : sample_num,
+        })
 
 
 
@@ -1390,6 +1633,15 @@ class MainController(flx.PyWidget):
         self.chromosome.set_sample_name(sample_name, display=False)
         self.chromosome.display(order)
 
+    @flx.action
+    def ui_show_info(self,                    genome_name: str,           bin_width: str,         metric: str,      chromosome: str,          sample_name: str,           order: str,     bin_num: int,       sample_num: int):
+        print("MainController.ui_show_info :: genome_name", genome_name, "bin_width", bin_width, "metric", metric, "chromosome", chromosome, "sample_name", sample_name, "order", order, "bin_num", bin_num, "sample_num", sample_num)
+        bin_width = int(bin_width)
+
+        self.genomes_load_chromosome(genome_name, bin_width, metric, chromosome)
+        self.chromosome.set_sample_name(sample_name, display=False)
+        self.chromosome.show_info(order, bin_num, sample_num)
+
     ##
     ## Genomes
     ##
@@ -1444,7 +1696,7 @@ class MainController(flx.PyWidget):
     def genomes_load_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str) -> reader.Chromosome:
         print(f"MainController.genomes_load_chromosome")
         chromosome = self.genomes.load_chromosome(genome_name, bin_width, metric, chromosome_name)
-        self.chromosome.set_chromosome(chromosome)
+        self.chromosome.set_chromosome(chromosome, genome_name)
         return chromosome
 
     def genome_samples(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str) -> typing.List[str]:

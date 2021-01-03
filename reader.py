@@ -1047,6 +1047,15 @@ class Chromosome():
     def matrix_bin_dist_sample_square(self, binNum: int, sample_name: str, metric: str = DEFAULT_METRIC) -> np.ndarray:
         return squareform(self.matrix_bin_dist_sample(binNum, sample_name, metric=metric))
 
+    def __eq__(self, other):
+        """Overrides the default implementation"""
+        if isinstance(other, Chromosome):
+            for k in ["vcf_name", "bin_width", "chromosome_order", "chromosome_name", "metric"]:
+                if getattr(self, k) != getattr(other, k):
+                    return False
+            return True
+        return False
+
 
 
 class Genome():
