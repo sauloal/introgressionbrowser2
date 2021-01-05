@@ -64,8 +64,8 @@ tree:
 
 
 
-.PHONY: run
-run: run_360 run_370 run_150_anno run_160_anno run_360_anno run_370_anno
+.PHONY: runs
+runs: run_360 run_370 run_150_anno run_160_anno run_360_anno run_370_anno
 
 .PHONY: run_360 run_370 run_150_anno run_160_anno run_360_anno run_370_anno
 run_360: data/360_merged_2.50.vcf.gz_ib
