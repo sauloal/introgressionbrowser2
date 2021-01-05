@@ -18,11 +18,13 @@ import scipy.cluster.hierarchy as sch
 from   scipy.cluster           import hierarchy
 from   scipy.spatial.distance  import pdist, squareform
 
+
+
 NUM_CPUS    = math.ceil(mp.cpu_count() * 0.8)
 __name      = "iBrowser"
-__version__ = "3.0"
+__version__ = "3.1"
 
-DEBUG                         = True
+DEBUG                         = False
 DEBUG_MAX_BIN                 = 15
 DEBUG_MAX_CHROM               = 2
 DEFAULT_BIN_SIZE              = 250_000
@@ -39,8 +41,8 @@ DEFAULT_THREADS               = NUM_CPUS - 1 if DEFAULT_THREADS == NUM_CPUS else
 DEFAULT_THREADS               = 1            if DEFAULT_THREADS == 0        else DEFAULT_THREADS
 
 # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.pdist.html
-METRIC_RAW_NAME = 'RAW'
-METRIC_PDIST    = [
+METRIC_RAW_NAME               = 'RAW'
+METRIC_PDIST                  = [
     'braycurtis' , 'canberra'  , 'chebyshev'    , 'cityblock'     ,
     'correlation', 'cosine'    , 'dice'         , 'euclidean'     ,
     'hamming'    , 'jaccard'   , 'jensenshannon', 'kulsinski'     ,
@@ -48,7 +50,7 @@ METRIC_PDIST    = [
     'russellrao' , 'seuclidean', 'sokalmichener', 'sokalsneath'   ,
     'sqeuclidean', 'yule'
 ]
-METRIC_HIERARCHICAL_METHODS = [
+METRIC_HIERARCHICAL_METHODS   = [
     "single"  , #(y) Perform single/min/nearest linkage on the condensed distance matrix y.
     "complete", #(y) Perform complete/max/farthest point linkage on a condensed distance matrix.
     "average" , #(y) Perform average/UPGMA linkage on a condensed distance matrix.
@@ -57,7 +59,7 @@ METRIC_HIERARCHICAL_METHODS = [
     "median"  , #(y) Perform median/WPGMC linkage.
     "ward"      #(y) Perform Ward’s linkage on a condensed distance matrix.
 ]
-METRIC_HIERARCHICAL = []
+METRIC_HIERARCHICAL           = []
 for method in METRIC_HIERARCHICAL_METHODS:
     for metric in METRIC_PDIST:
         if method in ['centroid', 'median', 'ward'] and metric != 'euclidean':
@@ -82,7 +84,8 @@ IUPACType            = typing.Dict[typing.FrozenSet[str], str]
 SampleNamesType      = typing.List[str]
 ChromosomeNamesType  = typing.List[str]
 ChromosomesType      = typing.OrderedDict[str, typing.OrderedDict[str, "Chromosome"]]
-
+RenameDictType       = typing.Union[typing.OrderedDict, None]
+BinTreesType         = typing.List[str]
 
 class Chromosome():
     """
@@ -91,9 +94,9 @@ class Chromosome():
         chrom.file_name
         chrom.exists
         chrom.load()
-        chrom.matrixNp.shape
+        chrom.bins_countNp.shape
         # (87, 64980)
-        chrom.matrixNp
+        chrom.bins_countNp
         # array([
         # [ 58,  18,  18, ...,   0,   0,   0],
         # [146,  44,  44, ...,   0,   0,   0],
@@ -102,13 +105,13 @@ class Chromosome():
         # [ 12,  28,  24, ...,   0,   0,   0],
         # [ 10,  14,  10, ...,   0,   0,   0],
         # [ 68,  78,  64, ...,   0,   0,   0]], dtype=uint16)
-        chrom.matrixNp[0,:]
+        chrom.bins_countNp[0,:]
         # array([58, 18, 24, ..., 12,  0,  0], dtype=uint16)
-        chrom.matrixNp.shape
+        chrom.bins_countNp.shape
         # (87, 64980)
         chrom.sample_count
         # 361
-        chrom.matrixNp.sum(axis=1)
+        chrom.bins_countNp.sum(axis=1)
         # array([14135926, 23254563, 19677883, 15874453,  8422700, 17916464,
         #        13698021, 16151376,  7881003, 16836865, 19910092, 17204299,
         #        16263240,  7178839, 14871309,  9396853,  5977816, 10596943,
@@ -124,7 +127,7 @@ class Chromosome():
         #         6715606,  6523644,  5566348,  6531633,  6160864,  5562834,
         #         5614820,  3962912,  4594549,  3875737,  4870790,  4368941,
         #         4920943,  4689962,  5360525], dtype=uint64)
-        m = reader.triangleToMatrix(chrom.sample_count, chrom.matrixNp[0,:])
+        m = reader.triangleToMatrix(chrom.sample_count, chrom.bins_countNp[0,:])
         m
         #
         #array([
@@ -154,7 +157,9 @@ class Chromosome():
             type_matrix_counter           : np.dtype        = DEFAULT_COUNTER_TYPE_MATRIX,
             type_matrix_distance          : np.dtype        = DEFAULT_DISTANCE_TYPE_MATRIX,
             type_pairwise_counter         : np.dtype        = DEFAULT_COUNTER_TYPE_PAIRWISE,
-            type_positions                : np.dtype        = DEFAULT_POSITIONS_TYPE
+            type_positions                : np.dtype        = DEFAULT_POSITIONS_TYPE,
+
+            debug                         : bool            = DEBUG
         ):
 
         self.vcf_name                     : str             = vcf_name
@@ -167,6 +172,7 @@ class Chromosome():
         self.type_matrix_distance         : np.dtype        = type_matrix_distance
         self.type_pairwise_counter        : np.dtype        = type_pairwise_counter
         self.type_positions               : np.dtype        = type_positions
+        self.debug                        : bool            = debug
 
         self.type_matrix_counter_max_val  : int             = np.iinfo(self.type_matrix_counter  ).max
         self.type_matrix_distance_max_val : int             = np.finfo(self.type_matrix_distance ).maxexp
@@ -188,15 +194,22 @@ class Chromosome():
         self.sample_names                 : SampleNamesType = None
         self.sample_count                 : int             = None
 
-        self.matrixNp                     : np.ndarray      = None
         self.binsnpNp                     : np.ndarray      = None
         self.pairwiNp                     : np.ndarray      = None
         self.alignmentNp                  : np.ndarray      = None
         self.positionNp                   : np.ndarray      = None
 
-        self.chrom_dist                   : np.ndarray      = None
-        self.leaf_ordering                : np.ndarray      = None
-        self.optimal_leaf_ordering        : np.ndarray      = None
+        self.chrom_distNp                 : np.ndarray      = None
+        self.chrom_linkageNp              : np.ndarray      = None
+        self.chrom_tree                   : str             = None
+
+        self.bins_countNp                 : np.ndarray      = None
+        self.bins_distNp                  : np.ndarray      = None
+        self.bins_linkageNp               : np.ndarray      = None
+        self.bins_trees                   : BinTreesType    = None
+
+        self.leaf_ordering_defaultNp      : np.ndarray      = None
+        self.leaf_ordering_optimalNp      : np.ndarray      = None
 
         self._is_loaded                   : bool            = False
 
@@ -220,11 +233,90 @@ class Chromosome():
 
     @property
     def matrix(self) -> np.ndarray:
-        return self.matrixNp
+        return self.chrom_distNp
 
     @property
     def matrix_dtype(self) -> np.dtype:
-        return self.matrixNp.dtype
+        return self.chrom_distNp.dtype
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        res = []
+
+        for k in [
+            "vcf_name",
+
+            "chromosome_name",
+            "chromosome_snps",
+            "chromosome_order",
+            "chromosome_first_position",
+            "chromosome_last_position",
+
+            "chrom_distNp",
+            "chrom_linkageNp",
+            "chrom_tree",
+
+            "bin_count",
+            "bin_width",
+            "bin_min",
+            "bin_max",
+            "bin_snps_min",
+            "bin_snps_max",
+
+            "bins_distNp",
+            "bins_linkageNp",
+            "bins_trees",
+
+            "leaf_ordering_defaultNp",
+            "leaf_ordering_optimalNp",
+
+            "matrix_size",
+            "metric",
+            "sample_names",
+            "sample_count",
+
+            "type_matrix_counter",
+            "type_matrix_distance",
+            "type_pairwise_counter",
+            "type_positions",
+
+            "type_matrix_counter_max_val",
+            "type_matrix_distance_max_val",
+            "type_pairwise_counter_max_val",
+            "type_positions_max_val",
+
+            "bins_countNp",
+            "binsnpNp",
+            "pairwiNp",
+            "alignmentNp",
+            "positionNp"
+        ]:
+
+            v = getattr(self, k)
+            s = None
+            if   isinstance(v, int):
+                s = f"{v:,d}"
+            elif isinstance(v, str):
+                s = f"{v[:30]:s}"
+            elif isinstance(v, list):
+                s = f"{len(v):,d}"
+            elif isinstance(v, np.ndarray):
+                s = f"{str(v.shape):s}"
+            else:
+                s = f"{str(v)[:30]:s}"
+            res.append(f"  {k:.<30s}{s:.>30s}")
+        return "\n".join(res)
+
+    def __eq__(self, other):
+        """Overrides the default implementation"""
+        if isinstance(other, Chromosome):
+            for k in ["vcf_name", "bin_width", "chromosome_order", "chromosome_name", "metric"]:
+                if getattr(self, k) != getattr(other, k):
+                    return False
+            return True
+        return False
 
     def _get_infos(self):
         names  = [
@@ -247,93 +339,36 @@ class Chromosome():
         type_pairwise_counter_name = self.type_pairwise_counter.__name__
         type_positions_name        = self.type_positions.__name__
 
-        names  = ["vcf_name"      , "metric"   , "chromosome_name"   ]
+        names  = ["vcf_name", "metric", "chromosome_name", "chrom_tree"]
         vals   = [getattr(self,n) for n in names]
 
         names += ["type_matrix_counter_name", "type_matrix_distance_name", "type_pairwise_counter_name", "type_positions_name"]
-        vals  += [type_matrix_counter_name  , type_matrix_distance_name  , type_pairwise_counter_name  , type_positions_name  ]
+        vals  += [ type_matrix_counter_name ,  type_matrix_distance_name ,  type_pairwise_counter_name ,  type_positions_name  ]
 
         return names, vals
 
     def _sample_pos(self, sample_name: str):
         return self.sample_names.index(sample_name)
 
-    def __repr__(self):
-        return str(self)
+    def _getNewick(self, node, newick, parentdist, leaf_names):
+        # https://stackoverflow.com/questions/28222179/save-dendrogram-to-newick-format
 
-    def __str__(self):
-        res = []
-        for k in [
-            "vcf_name",
-            "chromosome_name",
-            "chromosome_snps",
-            "chromosome_order",
-            "chromosome_first_position",
-            "chromosome_last_position",
-            "bin_count",
-            "bin_width",
-            "bin_min",
-            "bin_max",
-            "bin_snps_min",
-            "bin_snps_max",
-            "matrix_size",
-            "metric",
-            "sample_names",
-            "sample_count",
-            "type_matrix_counter",
-            "type_matrix_distance",
-            "type_pairwise_counter",
-            "type_positions",
-            "type_matrix_counter_max_val",
-            "type_matrix_distance_max_val",
-            "type_pairwise_counter_max_val",
-            "type_positions_max_val",
-            "matrixNp",
-            "binsnpNp",
-            "pairwiNp",
-            "alignmentNp",
-            "positionNp"
-        ]:
-
-            v = getattr(self, k)
-            s = None
-            if   isinstance(v, int):
-                s = f"{v:,d}"
-            elif isinstance(v, str):
-                s = f"{v:s}"
-            elif isinstance(v, list):
-                s = f"{len(v):,d}"
-            elif isinstance(v, np.ndarray):
-                s = f"{str(v.shape):s}"
+        dist_to_parent = parentdist - node.dist
+        if node.is_leaf():
+            leaf_name = leaf_names[node.id]
+            return f"{leaf_name:s}:{dist_to_parent:.2f}{newick:s}"
+        else:
+            if len(newick) > 0:
+                newick = f"):{dist_to_parent:.2f}{newick:s}"
             else:
-                s = f"{str(v):s}"
-            res.append(f"  {k:.<30s}{s:.>30s}")
-        return "\n".join(res)
-
-    def todict(self):
-        data = self.info()
-
-        data['countMatrix '] = self.matrixNp.tolist()
-        data['countTotals']  = self.binsnpNp.tolist()
-        data['countPairw']   = self.pairwiNp.tolist()
-        data['alignments']   = self.alignmentNp.tolist()
-        data['positions']    = self.positionNp.tolist()
-
-        return data
-
-    def metadata(self):
-        info_names,info_values     = self._get_infos()
-        meta_names,meta_values     = self._get_meta()
-
-        data =      {k:v for k,v in zip(info_names, info_values)}
-        data.update({k:v for k,v in zip(meta_names, meta_values)})
-
-        data['sample_names'] = self.sample_names
-
-        return data
+                newick = ");"
+            newick = self._getNewick(node.get_left(),        newick, node.dist, leaf_names)
+            newick = self._getNewick(node.get_right(), "," + newick, node.dist, leaf_names)
+            newick = "(" + newick
+            return newick
 
     @staticmethod
-    def _processVcf_read_header(vcf_name: str) -> typing.Tuple[SampleNamesType, int, int, TriangleIndexType]:
+    def _processVcf_read_header(vcf_name: str, debug: bool = DEBUG) -> typing.Tuple[SampleNamesType, int, int, TriangleIndexType]:
         with openFile(vcf_name, 'rt') as fhd:
             for line in fhd:
                 line = line.strip()
@@ -384,7 +419,9 @@ class Chromosome():
 
             type_matrix_counter  : np.dtype,
             type_pairwise_counter: np.dtype,
-            type_positions       : np.dtype
+            type_positions       : np.dtype,
+
+            debug                : bool = DEBUG
         ) -> typing.Tuple[int, int]:
 
         print(f"reading {chromosome_name}")
@@ -424,7 +461,7 @@ class Chromosome():
             # print(".", end="")
 
             if binNum not in chromosome_matrix:
-                if DEBUG:
+                if debug:
                     if len(chromosome_matrix) > DEBUG_MAX_BIN:
                         break
 
@@ -548,7 +585,9 @@ class Chromosome():
 
             type_matrix_counter          = type_matrix_counter,
             type_pairwise_counter        = type_pairwise_counter,
-            type_positions               = type_positions
+            type_positions               = type_positions,
+
+            debug                        = debug
         )
 
         # chromosome_bins = chromosome.bin_max
@@ -583,7 +622,9 @@ class Chromosome():
 
             type_matrix_counter      : np.dtype,
             type_pairwise_counter    : np.dtype,
-            type_positions           : np.dtype
+            type_positions           : np.dtype,
+
+            debug                    : bool = DEBUG
         ) -> typing.Tuple[int, int]:
 
         print(f"creating {chromosome_name}")
@@ -601,7 +642,9 @@ class Chromosome():
 
             type_matrix_counter       = type_matrix_counter,
             type_pairwise_counter     = type_pairwise_counter,
-            type_positions            = type_positions
+            type_positions            = type_positions,
+
+            debug                     = debug
         )
 
         chromosome.addFromVcf(
@@ -624,12 +667,13 @@ class Chromosome():
         chromosome.save()
 
         Chromosome._calculateDistance(
-            vcf_name         = vcf_name,
-            bin_width        = bin_width,
-            metric           = metric,
+            vcf_name         = vcf_name        ,
+            bin_width        = bin_width       ,
+            metric           = metric          ,
             chromosome_order = chromosome_order,
-            chromosome_name  = chromosome_name,
-            chromosome       = chromosome
+            chromosome_name  = chromosome_name ,
+            chromosome       = chromosome      ,
+            debug            = debug
         )
 
         return chromosome.bin_count, chromosome.chromosome_snps
@@ -641,18 +685,20 @@ class Chromosome():
             metric                : str,
             chromosome_order      : int,
             chromosome_name       : str,
-            chromosome            : "Chromosome" = None
+            chromosome            : "Chromosome" = None,
+            debug                 : bool         = DEBUG
         ):
 
         print(f"converting {chromosome_name} to {metric}")
 
         if chromosome is None:
             chromosome = Chromosome(
-                vcf_name              = vcf_name,
-                bin_width             = bin_width,
-                metric                = METRIC_RAW_NAME,
+                vcf_name              = vcf_name        ,
+                bin_width             = bin_width       ,
+                metric                = METRIC_RAW_NAME ,
                 chromosome_order      = chromosome_order,
-                chromosome_name       = chromosome_name,
+                chromosome_name       = chromosome_name ,
+                debug                 = debug
             )
             chromosome.load()
 
@@ -663,6 +709,43 @@ class Chromosome():
         chromosome.save(metric=metric)
 
         return chromosome.bin_max, chromosome.chromosome_snps
+
+    def todict(self):
+        data = self.info()
+
+        data['chrom_distNp'           ] = self.chrom_distNp.tolist()
+        data['chrom_linkageNp'        ] = self.chrom_linkageNp.tolist()
+        # data['chrom_tree'             ] = self.chrom_tree
+
+        data['bins_countNp'           ] = self.bins_countNp.tolist()
+        data['bins_distNp'            ] = self.bins_distNp.tolist()
+        data['bins_linkageNp'         ] = self.bins_linkageNp.tolist()
+        # data['bins_trees'             ] = self.bins_trees
+
+        data['leaf_ordering_defaultNp'] = self.leaf_ordering_defaultNp.tolist()
+        data['leaf_ordering_optimalNp'] = self.leaf_ordering_optimalNp.tolist()
+
+        data['countTotals'            ] = self.binsnpNp.tolist()
+        data['countPairw'             ] = self.pairwiNp.tolist()
+        data['alignments'             ] = self.alignmentNp.tolist()
+        data['positions'              ] = self.positionNp.tolist()
+
+        return data
+
+    def metadata(self):
+        info_names,info_values     = self._get_infos()
+        meta_names,meta_values     = self._get_meta()
+
+        data =      {k:v for k,v in zip(info_names, info_values)}
+        data.update({k:v for k,v in zip(meta_names, meta_values)})
+
+        data['sample_names'] = self.sample_names
+
+        return data
+
+    def clustering_to_tree(self, dist_matrix, sample_names):
+        tree       = hierarchy.to_tree(dist_matrix, False)
+        return self._getNewick(tree, "", tree.dist, sample_names)
 
     def addFromVcf(self,
             chromosome_snps          : int,
@@ -695,7 +778,7 @@ class Chromosome():
         self.chromosome_first_position    = chromosome_first_position
         self.chromosome_last_position     = chromosome_last_position
 
-        self.matrixNp                     = np.zeros((self.bin_count, self.matrix_size ), self.type_matrix_counter  )
+        self.bins_countNp                 = np.zeros((self.bin_count, self.matrix_size ), self.type_matrix_counter  )
         self.pairwiNp                     = np.zeros((self.bin_count, self.sample_count), self.type_pairwise_counter)
         self.binsnpNp                     = np.zeros( self.bin_count,                     self.type_pairwise_counter)
 
@@ -729,9 +812,9 @@ class Chromosome():
             assert not any([v > self.type_pairwise_counter_max_val for v in bin_pairwise_count_bin]), f"value went over the maximum value ({self.type_pairwise_counter_max_val}) for container {self.type_pairwise_counter}: {[v for v in bin_pairwise_count_bin if v > self.type_pairwise_counter_max_val]}"
             
             # binData             = [maxVal if v > maxVal else v for v in binData]
-            self.matrixNp[binNum,:]    = chromosome_matrix_bin
-            self.pairwiNp[binNum,:]    = bin_pairwise_count_bin
-            self.binsnpNp[binNum  ]    = bin_snps_bin
+            self.bins_countNp[binNum,:] = chromosome_matrix_bin
+            self.pairwiNp[binNum,:]     = bin_pairwise_count_bin
+            self.binsnpNp[binNum  ]     = bin_snps_bin
             if bin_alignment:
                 # print("   adding alignment")
                 self.alignmentNp[binNum,:] = bin_alignment_bin
@@ -749,64 +832,112 @@ class Chromosome():
         assert self.is_loaded, "chromosome not loaded"
 
         if metric is None or metric == METRIC_RAW_NAME:
-            self.chrom_dist                  = np.zeros(self.matrix_size, self.type_matrix_counter)
-            self.leaf_ordering               = np.arange(start=0, stop=self.sample_count, step=1)
-            self.optimal_leaf_ordering       = np.arange(start=0, stop=self.sample_count, step=1)
+            self.chrom_distNp                  = np.arange(start=0, stop=0, step=1, dtype=self.type_matrix_distance)
+            self.chrom_linkageNp               = np.arange(start=0, stop=0, step=1, dtype=self.type_matrix_distance)
+            self.chrom_tree                    = ""
+
+            bins_countNp                       = self.bins_countNp
+            self.bins_distNp                   = np.arange(start=0, stop=0, step=1, dtype=self.type_matrix_distance)
+            self.bins_linkageNp                = np.arange(start=0, stop=0, step=1, dtype=self.type_matrix_distance)
+            self.bins_trees                    = []
+
+            self.leaf_ordering_defaultNp       = np.arange(start=0, stop=self.sample_count, step=1)
+            self.leaf_ordering_optimalNp       = np.arange(start=0, stop=self.sample_count, step=1)
 
         else:
             assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
             print(f"converting chromosome {self.chromosome_name} to {metric}")
-            matrix_dist, chrom_dist, leaf_ordering, optimal_leaf_ordering = self.convert_matrix_to_distance(metric)
-            self.metric                      = metric
-            self.matrixNp                    = matrix_dist
-            self.chrom_dist                  = chrom_dist
-            self.leaf_ordering               = leaf_ordering
-            self.optimal_leaf_ordering       = optimal_leaf_ordering
+
+            (
+                chrom_dist           ,
+                chrom_linkage        ,
+                chrom_tree           ,
+                
+                bins_dist            ,
+                bins_linkage         ,
+                bins_trees           ,
+                
+                leaf_ordering_default,
+                leaf_ordering_optimal
+            ) = self.convert_matrix_to_distance(metric)
+
+            self.metric                        = metric
+
+            self.chrom_distNp                  = chrom_dist
+            self.chrom_linkageNp               = chrom_linkage
+            self.chrom_tree                    = chrom_tree
+
+            bins_countNp                       = np.arange(start=0, stop=0, step=1, dtype=self.type_matrix_counter)
+            self.bins_distNp                   = bins_dist
+            self.bins_linkageNp                = bins_linkage
+            self.bins_trees                    = bins_trees
+
+            self.leaf_ordering_defaultNp       = leaf_ordering_default
+            self.leaf_ordering_optimalNp       = leaf_ordering_optimal
 
         print(f"{'saving numpy array:':.<32s}{self.file_name:.>30s}")
         print(self)
+
 
         info_names, info_vals      = self._get_infos()
         meta_names, meta_vals      = self._get_meta()
 
         sample_namesNp             = np.array(self.sample_names, np.unicode_)
+        bins_treesNp               = np.array(self.bins_trees  , np.unicode_)
+
         info_namesNp               = np.array(info_names       , np.unicode_)
         info_valuesNp              = np.array(info_vals        , np.int64   )
         meta_namesNp               = np.array(meta_names       , np.unicode_)
         meta_valuesNp              = np.array(meta_vals        , np.unicode_)
 
         np.savez_compressed(self.file_name,
-            countMatrix           = self.matrixNp,
-            chrom_dist            = self.chrom_dist,
-            leaf_ordering         = self.leaf_ordering,
-            optimal_leaf_ordering = self.optimal_leaf_ordering,
-            countTotals           = self.binsnpNp,
-            countPairw            = self.pairwiNp,
-            alignments            = self.alignmentNp,
-            positions             = self.positionNp,
-            sample_names          = sample_namesNp,
-            info_names            = info_namesNp,
-            info_values           = info_valuesNp,
-            meta_names            = meta_namesNp,
-            meta_values           = meta_valuesNp
+            chrom_dist             = self.chrom_distNp,
+            chrom_linkage          = self.chrom_linkageNp,
+
+            bins_count             = bins_countNp,
+            bins_dist              = self.bins_distNp,
+            bins_linkage           = self.bins_linkageNp,
+
+            leaf_ordering_default  = self.leaf_ordering_defaultNp,
+            leaf_ordering_optimal  = self.leaf_ordering_optimalNp,
+
+            countTotals            = self.binsnpNp,
+            countPairw             = self.pairwiNp,
+            alignments             = self.alignmentNp,
+            positions              = self.positionNp,
+
+            sample_names           = sample_namesNp,
+            bins_trees             = bins_treesNp,
+
+            info_names             = info_namesNp,
+            info_values            = info_valuesNp,
+
+            meta_names             = meta_namesNp,
+            meta_values            = meta_valuesNp
         )
 
     def load(self):
         print(f"{'loading numpy array:':.<32s}{self.file_name:.>30s}")
         data                               = np.load(self.file_name, mmap_mode='r', allow_pickle=False)
 
-        self.matrixNp                      = data['countMatrix']
-        self.chrom_dist                    = data['chrom_dist']
-        self.leaf_ordering                 = data['leaf_ordering']
-        self.optimal_leaf_ordering         = data['optimal_leaf_ordering']
+        self.chrom_distNp                  = data['chrom_dist']
+        self.chrom_linkageNp               = data['chrom_linkage']
+
+        self.bins_countNp                  = data['bins_count']
+        self.bins_distNp                   = data['bins_dist']
+        self.bins_linkageNp                = data['bins_linkage']
+
+        self.leaf_ordering_defaultNp       = data['leaf_ordering_default']
+        self.leaf_ordering_optimalNp       = data['leaf_ordering_optimal']
 
         self.binsnpNp                      = data['countTotals']
         self.pairwiNp                      = data['countPairw']
         self.alignmentNp                   = data['alignments']
         self.positionNp                    = data['positions']
-        
+
         sample_namesNp                     = data['sample_names']
-        
+        bins_treesNp                       = data['bins_trees']
+
         info_namesNp                       = data['info_names']
         info_valuesNp                      = data['info_values']
 
@@ -814,6 +945,7 @@ class Chromosome():
         meta_valuesNp                      = data['meta_values']
 
         sample_names                       = sample_namesNp.tolist()
+        bins_trees                         = bins_treesNp.tolist()
 
         info_names                         = info_namesNp.tolist()
         info_values                        = info_valuesNp.tolist()
@@ -830,17 +962,40 @@ class Chromosome():
         assert os.path.basename(vcf_name) == os.path.basename(self.vcf_name)
         # self.vcf_name                      = vcf_name
 
+        metric                             = meta_dict["metric"]
+        assert self.metric == metric
+        assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
+        self.metric = metric
+
         self.matrix_size                   = info_dict["matrix_size"]
-        assert self.matrix_size == self.matrixNp.shape[1]
-        assert self.matrix_size == self.chrom_dist.shape[0]
+        print("metric", metric)
+        print("self.chrom_distNp.shape", self.chrom_distNp.shape)
+        if metric == METRIC_RAW_NAME:
+            assert 0 == self.chrom_distNp.shape[0]
+        else:
+            assert self.matrix_size == self.chrom_distNp.shape[0]
+            assert self.matrix_size == self.chrom_distNp.shape[1]
 
         self.bin_count                     = info_dict["bin_count"]
         self.bin_min                       = info_dict["bin_min"]
         self.bin_max                       = info_dict["bin_max"]
         self.bin_snps_min                  = info_dict["bin_snps_min"]
         self.bin_snps_max                  = info_dict["bin_snps_max"]
-        assert self.bin_count == self.matrixNp.shape[0]
+        self.bins_trees                    = bins_trees
+        # print("self.bin_count", self.bin_count)
+        # print("self.bins_countNp.shape", self.bins_countNp.shape)
+        # print("self.bins_distNp .shape", self.bins_distNp .shape)
+        # print("len(self.bins_trees)", len(self.bins_trees))
         assert self.bin_count == self.pairwiNp.shape[0]
+        if metric == METRIC_RAW_NAME:
+            assert self.bin_count == self.bins_countNp.shape[0]
+            assert 0              == self.bins_distNp .shape[0]
+            assert 0              == len(self.bins_trees)
+        else:
+            assert self.bin_count == self.bins_distNp .shape[0]
+            assert self.bin_count == self.bins_distNp .shape[1]
+            assert self.bin_count == len(self.bins_trees)
+            assert 0              == self.bins_countNp.shape[0]
 
         bin_width                          = info_dict["bin_width"]
         assert bin_width == self.bin_width
@@ -859,11 +1014,6 @@ class Chromosome():
         assert (self.chromosome_first_position // self.bin_width) == self.bin_min
         assert (self.chromosome_last_position  // self.bin_width) == self.bin_max
 
-        metric                             = meta_dict["metric"]
-        assert self.metric == metric
-        assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
-        self.metric = metric
-
         type_matrix_counter_name           = meta_dict["type_matrix_counter_name"]
         type_matrix_distance_name          = meta_dict["type_matrix_distance_name"]
         type_pairwise_counter_name         = meta_dict["type_pairwise_counter_name"]
@@ -874,9 +1024,10 @@ class Chromosome():
         self.type_pairwise_counter         = getattr(np, type_pairwise_counter_name)
         self.type_positions                = getattr(np, type_positions_name)
 
-        assert self.matrixNp.dtype   in (self.type_matrix_counter, self.type_matrix_distance)
-        assert self.pairwiNp.dtype   == self.type_pairwise_counter
-        assert self.positionNp.dtype == self.type_positions
+        assert self.chrom_distNp.dtype  == self.type_matrix_distance
+        assert self.bins_countNp.dtype  == self.type_matrix_counter
+        assert self.pairwiNp.dtype      == self.type_pairwise_counter
+        assert self.positionNp.dtype    == self.type_positions
 
         type_matrix_counter_max_val        = info_dict["type_matrix_counter_max_val"]
         type_matrix_distance_max_val       = info_dict["type_matrix_distance_max_val"]
@@ -892,13 +1043,13 @@ class Chromosome():
         self.type_matrix_distance_max_val  = type_matrix_distance_max_val
         self.type_pairwise_counter_max_val = type_pairwise_counter_max_val
         self.type_positions_max_val        = type_positions_max_val
-        
+
         self.sample_count                  = info_dict["sample_count"]
         self.sample_names                  = sample_names
         assert len(self.sample_names) == self.sample_count
         assert self.sample_count      == self.pairwiNp.shape[1]
-        assert self.sample_count      == self.leaf_ordering.shape[0]
-        assert self.sample_count      == self.optimal_leaf_ordering.shape[0]
+        assert self.sample_count      == self.leaf_ordering_defaultNp.shape[0]
+        assert self.sample_count      == self.leaf_ordering_optimalNp.shape[0]
 
         if self.alignmentNp.shape[0] != 0:
             assert self.sample_count  == self.alignmentNp.shape[1]
@@ -912,23 +1063,34 @@ class Chromosome():
         assert self.is_loaded
 
         print(f"chromosome {self.chromosome_name} - calculating distance {metric}")
-        dist = np.zeros((self.matrixNp.shape[0], self.matrixNp.shape[1]), dtype=self.type_matrix_distance)
 
-        chrom_sum = self.matrixNp.sum(axis=0)
-        chrom_dist, leaf_ordering, optimal_leaf_ordering = matrixDistance(chrom_sum, metric=metric, dtype=self.type_matrix_distance, do_clustering=True)
+        chrom_sum  = self.bins_countNp.sum(axis=0)
 
+        (
+            chrom_dist           ,
+            chrom_linkage        ,
+            leaf_ordering_default,
+            leaf_ordering_optimal
+        ) = matrixDistance(chrom_sum, metric=metric, dtype=self.type_matrix_distance, do_clustering=True)
+
+        chrom_tree   = self.clustering_to_tree(chrom_linkage, self.sample_names)
+
+        bins_dist    = np.zeros((self.bins_countNp.shape[0], self.bins_countNp.shape[1]), dtype=self.type_matrix_distance)
+        bins_linkage = np.arange(start=0, stop=0, step=1, dtype=self.type_matrix_distance)
+        bins_trees   = [None] * self.bin_count
         for binNum in range(self.bin_count):
             # print(f"chromosome {self.chromosome_name} - calculating distance {metric} - bin {binNum}")
-            bdist, _, _    = matrixDistance(self.matrixNp[binNum,:], metric=metric, dtype=self.type_matrix_distance, do_clustering=False)
-            dist[binNum,:] = bdist
-        
-        # print("chrom_sum")
-        # print("self.matrixNp.shape", self.matrixNp.shape)
-        # print("chrom_sum.shape", chrom_sum.shape)
-        # print("chrom_sum", chrom_sum)
-        # print("cdist", cdist)
-        # print("corder", corder)
-        # print("cborder", cborder)
+            (
+                bin_dist             ,
+                bin_linkage          ,
+                leaf_ordering_default,
+                leaf_ordering_optimal
+            ) = matrixDistance(self.bins_countNp[binNum,:], metric=metric, dtype=self.type_matrix_distance, do_clustering=True)
+            bin_tree_default       = self.clustering_to_tree(bin_linkage, [self.sample_names[s] for s in leaf_ordering_default])
+            bin_tree_optimal       = self.clustering_to_tree(bin_linkage, [self.sample_names[s] for s in leaf_ordering_optimal])
+            bins_dist[binNum,:]    = bin_dist
+            # bins_linkage[binNum,:] = bin_linkage
+            bins_trees[binNum]     = bin_tree_default + "\n" + bin_tree_optimal
 
         """
             import numpy as np
@@ -959,7 +1121,7 @@ class Chromosome():
             b.sum(axis=0).shape
         """
 
-        return dist, chrom_dist, leaf_ordering, optimal_leaf_ordering
+        return chrom_dist, chrom_linkage, chrom_tree, bins_dist, bins_linkage, bins_trees, leaf_ordering_default, leaf_ordering_optimal
 
     def matrix_sample(self, sample_name: str, metric=None) -> np.ndarray:
         """
@@ -972,7 +1134,7 @@ class Chromosome():
         if metric is None:
             metric == self.metric
 
-        data = np.zeros((self.bin_count, self.sample_count), dtype=self.matrixNp.dtype)
+        data = np.zeros((self.bin_count, self.sample_count), dtype=self.chrom_distNp.dtype)
         
         for binNum in range(self.bin_count):
             if metric == self.metric:
@@ -1032,8 +1194,13 @@ class Chromosome():
         if metric == METRIC_RAW_NAME:
             return matrix_bin, np.arange(start=0, stop=self.sample_count, step=1), np.arange(start=0, stop=self.sample_count, step=1)
         else:
-            dist, _, _ = matrixDistance(matrix_bin, metric=metric, dtype=dtype, do_clustering=False)
-            return dist
+            (
+                bin_dist             ,
+                bin_linkage          ,
+                leaf_ordering_default,
+                leaf_ordering_optimal
+            ) = matrixDistance(matrix_bin, metric=metric, dtype=dtype, do_clustering=False)
+            return bin_dist
 
     def matrix_bin_dist_square(self, binNum: int, metric: str = DEFAULT_METRIC) -> np.ndarray:
         return squareform(self.matrix_bin_dist(binNum, metric=metric))
@@ -1046,15 +1213,6 @@ class Chromosome():
 
     def matrix_bin_dist_sample_square(self, binNum: int, sample_name: str, metric: str = DEFAULT_METRIC) -> np.ndarray:
         return squareform(self.matrix_bin_dist_sample(binNum, sample_name, metric=metric))
-
-    def __eq__(self, other):
-        """Overrides the default implementation"""
-        if isinstance(other, Chromosome):
-            for k in ["vcf_name", "bin_width", "chromosome_order", "chromosome_name", "metric"]:
-                if getattr(self, k) != getattr(other, k):
-                    return False
-            return True
-        return False
 
 
 
@@ -1072,7 +1230,9 @@ class Genome():
             type_matrix_distance  : np.dtype            = DEFAULT_DISTANCE_TYPE_MATRIX,
             type_pairwise_counter : np.dtype            = DEFAULT_COUNTER_TYPE_PAIRWISE,
             type_positions        : np.dtype            = DEFAULT_POSITIONS_TYPE,
-            rename_dict           : typing.Union[typing.OrderedDict, None] = None
+            rename_dict           : RenameDictType      = None,
+
+            debug                 : bool                = DEBUG
         ):
 
         self.vcf_name             : str                 = vcf_name
@@ -1087,7 +1247,9 @@ class Genome():
         self.type_matrix_distance : np.dtype            = type_matrix_distance
         self.type_pairwise_counter: np.dtype            = type_pairwise_counter
         self.type_positions       : np.dtype            = type_positions
-        self.rename_dict          : typing.Union[typing.OrderedDict, None] = rename_dict
+        self.rename_dict          : RenameDictType      = rename_dict
+
+        self.debug                : bool                = debug
 
         self.sample_names         : SampleNamesType     = None
         self.sample_count         : int                 = None
@@ -1191,7 +1353,7 @@ class Genome():
 
         assert os.path.exists(self.vcf_name), f"vcf file {self.vcf_name} does not exists"
 
-        sample_names, sample_count, matrix_size, indexes = Chromosome._processVcf_read_header(self.vcf_name)
+        sample_names, sample_count, matrix_size, indexes = Chromosome._processVcf_read_header(self.vcf_name, debug=self.debug)
         if self.rename_dict is not None:
             for sample_pos, sample_name in enumerate(sample_names):
                 new_sample_name = self.rename_dict.get(sample_name, sample_name)
@@ -1206,7 +1368,7 @@ class Genome():
         self.chromosome_names = bgzip.chromosomes
         self.chromosome_count = len(self.chromosome_names)
 
-        if DEBUG:
+        if self.debug:
             self.chromosome_names = self.chromosome_names[:DEBUG_MAX_CHROM]
             self.chromosome_count = len(self.chromosome_names)
 
@@ -1222,6 +1384,7 @@ class Genome():
                     metric                = METRIC_RAW_NAME,
                     chromosome_order      = chromosome_order,
                     chromosome_name       = chromosome_name,
+                    debug                 = self.debug
                 )
 
                 if chromosome.exists:
@@ -1252,7 +1415,9 @@ class Genome():
 
                             "type_matrix_counter"   : self.type_matrix_counter,
                             "type_pairwise_counter" : self.type_pairwise_counter,
-                            "type_positions"        : self.type_positions
+                            "type_positions"        : self.type_positions,
+
+                            "debug"                 : self.debug
                         }
                     )
                 results[chromosome_order] = [False, res, chromosome_order, chromosome_name]
@@ -1362,7 +1527,7 @@ class Genome():
         for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
             chromosome_exists, chromosome_loaded, chromosome = self.check_chromosome(chromosome_name, self._metric)
 
-            if DEBUG:
+            if self.debug:
                 if chromosome_order >= DEBUG_MAX_CHROM:
                     break
 
@@ -1480,7 +1645,9 @@ class Genome():
                 type_matrix_counter   = self.type_matrix_counter,
                 type_matrix_distance  = self.type_matrix_distance,
                 type_pairwise_counter = self.type_pairwise_counter,
-                type_positions        = self.type_positions 
+                type_positions        = self.type_positions,
+
+                debug                 = self.debug
             )
 
             chromosome_exists = chromosome.exists
@@ -1520,7 +1687,7 @@ class Genome():
         print(f"Genome.save_chromosomes :: metric {metric}")
 
         for chromosome_order, chromosome_name in enumerate(self.chromosome_names):
-            if DEBUG:
+            if self.debug:
                 if chromosome_order >= DEBUG_MAX_CHROM:
                     break
 
@@ -1585,8 +1752,11 @@ class Genome():
 
 
 class Genomes():
-    def __init__(self, folder_name: str, verbose=False):
+    def __init__(self, folder_name: str, verbose=False, debug=DEBUG):
         self.folder_name     : str        = folder_name
+        self.verbose         : bool       = verbose
+        self.debug           : bool       = debug
+
         self._genomes                     = None
 
         self.curr_genome_name: str        = None
@@ -1596,9 +1766,9 @@ class Genomes():
         self.curr_chrom_name : str        = None
         self.curr_chrom      : Chromosome = None
 
-        self.update(verbose=verbose)
+        self.update(verbose=self.verbose)
 
-        if DEBUG:
+        if self.debug:
             print("genomes    ", self.genomes)
             # print("genome_info", self.genomes[0], self.genome_info(self.genomes[0]))
             genomes     = self.genomes
@@ -1640,97 +1810,8 @@ class Genomes():
     def chromosome(self) -> Chromosome:
         return self.curr_chrom
 
-    def genome_info(self, genome_name: str):
-        assert genome_name in self.genomes
-        return self._genomes[genome_name]
-
-    def bin_widths(self, genome_name: str) -> typing.List[str]:
-        return list(self.genome_info(genome_name)["bin_widths"].keys())
-
-    def bin_width_info(self, genome_name: str, bin_width: int):
-        assert bin_width   in self.bin_widths(genome_name)
-        return self.genome_info(genome_name)["bin_widths"][bin_width]
-
-    def metrics(self, genome_name: str, bin_width: int) -> typing.List[str]:
-        return list(self.bin_width_info(genome_name, bin_width)["metrics"].keys())
-
-    def metric_info(self, genome_name: str, bin_width: int, metric: str) -> typing.Dict[str, typing.Any]:
-        assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
-        return self.bin_width_info(genome_name, bin_width)["metrics"][metric]
-
-    def chromosome_names(self, genome_name: str, bin_width: int, metric: str) -> typing.List[typing.Tuple[int, str]]:
-        metric_info      = self.metric_info(genome_name, bin_width, metric)
-        chromosome_names = [(m["chromosome_pos"], m["chromosome_name"]) for m in metric_info]
-        return chromosome_names
-
-    def update(self, verbose=False):
-        self._genomes = Genomes.listProjects(self.folder_name, verbose=verbose)
-
-    def load_genome(self, genome_name: str, bin_width: int, metric: str, preload: bool = False, create_if_not_exists: bool = False) -> Genome:
-        if not (
-                genome_name == self.curr_genome_name and
-                bin_width   == self.curr_genome_binw and
-                metric      == self.curr_genome_metr
-        ):
-            self.curr_genome_name: str        = None
-            self.curr_genome_binw: int        = None
-            self.curr_genome_metr: str        = None
-            self.curr_genome     : Genome     = None
-            self.curr_chrom_name : str        = None
-            self.curr_chrom      : Chromosome = None
-
-            # projects[database_name]["bin_widths"][bin_width]["metrics"][metric]
-            if genome_name   not in self.genomes:
-                raise ValueError(f"no such database {genome_name}. {','.join(self.genomes)}")
-
-            if bin_width not in self.bin_widths(genome_name):
-                raise ValueError(f"no such bin width {bin_width} for database {genome_name}: {self.bin_widths(genome_name)}")
-
-            if metric    not in self.metrics(genome_name, bin_width):
-                raise ValueError(f"no such metric {metric} for database {genome_name} bin width {bin_width}: {self.metrics(genome_name, bin_width)}")
-
-            # print(self.genomes[genome_name])
-            project_path = self.genome_info(genome_name)["project_path"]
-            print("loading project_path", project_path)
-
-            genome = Genome(
-                vcf_name  = project_path,
-                bin_width = bin_width,
-                metric    = metric
-            )
-
-            print("genome.file_name", genome.file_name)
-            
-            assert genome.exists
-            
-            # print(genome)
-            
-            genome.load(preload=preload, create_if_not_exists=create_if_not_exists)
-
-            assert genome.loaded
-            assert genome.complete
-
-            self.curr_genome_name: str        = genome_name
-            self.curr_genome_binw: int        = bin_width
-            self.curr_genome_metr: str        = metric
-            self.curr_genome     : Genome     = genome
-            self.curr_chrom_name : str        = None
-            self.curr_chrom      : Chromosome = None
-
-        return self.curr_genome
-
-    def load_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str) -> Chromosome:
-        genome = self.load_genome(genome_name, bin_width, metric)
-        
-        if chromosome_name != self.curr_chrom_name:
-            chromosome           = genome.get_chromosome(chromosome_name, metric)
-            self.curr_chrom_name = chromosome_name
-            self.curr_chrom      = chromosome
-        
-        return self.curr_chrom
-
     @staticmethod
-    def listProjects(folder_name, verbose=False):
+    def listProjects(folder_name, verbose=False, debug=DEBUG):
         basepath   = os.path.abspath(folder_name)
         file_names = list(iglob(os.path.join(basepath,"**/*.npz"), recursive=True))
         projects   = OrderedDict()
@@ -1852,6 +1933,96 @@ class Genomes():
                                 print(f"        {metrickey:15s}: {metricvalue}")
 
         return projects
+
+    def genome_info(self, genome_name: str):
+        assert genome_name in self.genomes
+        return self._genomes[genome_name]
+
+    def bin_widths(self, genome_name: str) -> typing.List[str]:
+        return list(self.genome_info(genome_name)["bin_widths"].keys())
+
+    def bin_width_info(self, genome_name: str, bin_width: int):
+        assert bin_width   in self.bin_widths(genome_name)
+        return self.genome_info(genome_name)["bin_widths"][bin_width]
+
+    def metrics(self, genome_name: str, bin_width: int) -> typing.List[str]:
+        return list(self.bin_width_info(genome_name, bin_width)["metrics"].keys())
+
+    def metric_info(self, genome_name: str, bin_width: int, metric: str) -> typing.Dict[str, typing.Any]:
+        assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
+        return self.bin_width_info(genome_name, bin_width)["metrics"][metric]
+
+    def chromosome_names(self, genome_name: str, bin_width: int, metric: str) -> typing.List[typing.Tuple[int, str]]:
+        metric_info      = self.metric_info(genome_name, bin_width, metric)
+        chromosome_names = [(m["chromosome_pos"], m["chromosome_name"]) for m in metric_info]
+        return chromosome_names
+
+    def update(self, verbose=False):
+        self._genomes = Genomes.listProjects(self.folder_name, verbose=verbose, debug=self.debug)
+
+    def load_genome(self, genome_name: str, bin_width: int, metric: str, preload: bool = False, create_if_not_exists: bool = False) -> Genome:
+        if not (
+                genome_name == self.curr_genome_name and
+                bin_width   == self.curr_genome_binw and
+                metric      == self.curr_genome_metr
+        ):
+            self.curr_genome_name: str        = None
+            self.curr_genome_binw: int        = None
+            self.curr_genome_metr: str        = None
+            self.curr_genome     : Genome     = None
+            self.curr_chrom_name : str        = None
+            self.curr_chrom      : Chromosome = None
+
+            # projects[database_name]["bin_widths"][bin_width]["metrics"][metric]
+            if genome_name   not in self.genomes:
+                raise ValueError(f"no such database {genome_name}. {','.join(self.genomes)}")
+
+            if bin_width not in self.bin_widths(genome_name):
+                raise ValueError(f"no such bin width {bin_width} for database {genome_name}: {self.bin_widths(genome_name)}")
+
+            if metric    not in self.metrics(genome_name, bin_width):
+                raise ValueError(f"no such metric {metric} for database {genome_name} bin width {bin_width}: {self.metrics(genome_name, bin_width)}")
+
+            # print(self.genomes[genome_name])
+            project_path = self.genome_info(genome_name)["project_path"]
+            print("loading project_path", project_path)
+
+            genome = Genome(
+                vcf_name  = project_path,
+                bin_width = bin_width,
+                metric    = metric,
+                debug     = self.debug
+            )
+
+            print("genome.file_name", genome.file_name)
+
+            assert genome.exists
+
+            # print(genome)
+
+            genome.load(preload=preload, create_if_not_exists=create_if_not_exists)
+
+            assert genome.loaded
+            assert genome.complete
+
+            self.curr_genome_name: str        = genome_name
+            self.curr_genome_binw: int        = bin_width
+            self.curr_genome_metr: str        = metric
+            self.curr_genome     : Genome     = genome
+            self.curr_chrom_name : str        = None
+            self.curr_chrom      : Chromosome = None
+
+        return self.curr_genome
+
+    def load_chromosome(self, genome_name: str, bin_width: int, metric: str, chromosome_name: str) -> Chromosome:
+        genome = self.load_genome(genome_name, bin_width, metric)
+
+        if chromosome_name != self.curr_chrom_name:
+            chromosome           = genome.get_chromosome(chromosome_name, metric)
+            self.curr_chrom_name = chromosome_name
+            self.curr_chrom      = chromosome
+
+        return self.curr_chrom
 
 
 
@@ -2466,7 +2637,7 @@ def triangleToMatrix(tri_array) -> np.ndarray:
     
     return M
 
-def matrixDistance(matrix: np.ndarray, metric=DEFAULT_METRIC, dtype=np.float64, do_clustering=False) -> typing.Union[np.ndarray,np.ndarray,np.ndarray]:
+def matrixDistance(matrix: np.ndarray, metric=DEFAULT_METRIC, dtype=np.float64, do_clustering=False) -> typing.Union[np.ndarray,typing.Union[np.ndarray, None],np.ndarray,np.ndarray]:
     """
         import numpy as np
         from scipy.spatial.distance import pdist, squareform
@@ -2602,18 +2773,19 @@ def matrixDistance(matrix: np.ndarray, metric=DEFAULT_METRIC, dtype=np.float64, 
 
     # dist                  = (1.0/(1.0 + pdist(square_matrix, metric=clustering_metric))).astype(dtype)
     dist                  = pdist(square_matrix, metric=clustering_metric)
-    leaf_ordering         = np.arange(start=0, stop=square_matrix.shape[0], step=1)
-    optimal_leaf_ordering = np.arange(start=0, stop=square_matrix.shape[0], step=1)
+    linkage               = None
+    leaf_ordering_default = np.arange(start=0, stop=square_matrix.shape[0], step=1)
+    leaf_ordering_optimal = np.arange(start=0, stop=square_matrix.shape[0], step=1)
 
     # print(f"matrixDistance matrix.shape {matrix.shape}")
     # print(dist.tolist())
 
     if do_clustering:
         linkage               = sch.linkage(dist, method=clustering_method, optimal_ordering=False)
-        leaf_ordering         = hierarchy.leaves_list(linkage)
-        optimal_leaf_ordering = hierarchy.leaves_list(hierarchy.optimal_leaf_ordering(linkage, linear_matrix))
+        leaf_ordering_default = hierarchy.leaves_list(linkage)
+        leaf_ordering_optimal = hierarchy.leaves_list(hierarchy.optimal_leaf_ordering(linkage, linear_matrix))
 
-    return dist.astype(dtype), leaf_ordering, optimal_leaf_ordering
+    return dist.astype(dtype), linkage, leaf_ordering_default, leaf_ordering_optimal
 
 def genDiffMatrix(alphabet: typing.List[str]=list(range(4))) -> MatrixType:
     """
@@ -2774,7 +2946,7 @@ def main():
         rename_dict = parse_tsv(rename_tsv)
         # print(rename_dict)
 
-    genome   = Genome(
+    genome = Genome(
         filename,
         bin_width             = bin_size,
         metric                = metric,
@@ -2787,14 +2959,16 @@ def main():
         type_matrix_distance  = DEFAULT_DISTANCE_TYPE_MATRIX,
         type_pairwise_counter = DEFAULT_COUNTER_TYPE_PAIRWISE,
         type_positions        = DEFAULT_POSITIONS_TYPE,
-        rename_dict           = rename_dict
+        rename_dict           = rename_dict,
+
+        debug                 = debug
     )
 
     # print("DEFAULT_THREADS", DEFAULT_THREADS)
 
     create_if_not_exists = True
     # genome.load(create_if_not_exists=create_if_not_exists, threads=6)
-    genome.load(create_if_not_exists=create_if_not_exists, threads=threads if not DEBUG else 1)
+    genome.load(create_if_not_exists=create_if_not_exists, threads=threads if not debug else 1)
 
 
 

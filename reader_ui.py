@@ -603,17 +603,19 @@ class Graph(flx.CanvasWidget):
         print(f"Graph.show_info :: data")
         # print(f"Graph.show_info :: data", JSON.stringify(data))
 
-        genome_name  = data["genome_name"] # 370 merged 2.50
-        bin_width    = data["bin_width"  ] # 250000
-        metric       = data["metric"     ] # average_jaccard
-        order        = data["order"      ] # optimal_leaf_ordering
-        bin_num      = data["bin_num"    ] # 12
-        sample_num   = data["sample_num" ] # 11
+        genome_name  = data["genome_name" ] # 370 merged 2.50
+        bin_width    = data["bin_width"   ] # 250000
+        metric       = data["metric"      ] # average_jaccard
+        order        = data["order"       ] # optimal_leaf_ordering
+        bin_num      = data["bin_num"     ] # 12
+        sample_num   = data["sample_num"  ] # 11
+        sample_names = data["sample_names"]
 
         bin_snps     = data["bin_snps"    ]
         sample_name  = data["sample_name" ]
         distance_bin = data["distance_bin"]
         distance_sam = data["distance_sam"]
+        newick       = data["newick"      ]
 
         bin_start    = bin_width * (bin_num + 0)
         bin_end      = bin_width * (bin_num + 1)
@@ -627,12 +629,14 @@ class Graph(flx.CanvasWidget):
 
             "\n\tbin_snps    ", bin_snps    ,
             "\n\tsample_name ", sample_name ,
+            "\n\tsample_names", sample_names, len(sample_names),
             "\n\tdistance_bin", distance_bin, len(distance_bin),
             "\n\tdistance_sam", distance_sam, len(distance_sam),
 
             "\n\tbin_num     ", bin_num     ,
             "\n\tbin_start   ", bin_start   ,
             "\n\tbin_end     ", bin_end     ,
+            "\n\tnewick      ", newick      ,
 
             # "\n\tsample_name" , sample_name ,
             # "\n\tbin_snps"    , bin_snps    ,
@@ -1481,11 +1485,11 @@ class ChromosomeController(flx.PyComponent):
         
         matrix_min, matrix_max, matrix, sample_names = self._get_ordered(order, self.sample_name)
 
-        matrixl      = matrix.tolist()
-
         bin_snps     = self.bin_snps[bin_num]
+        matrixl      = matrix.tolist()
         distance_bin = matrixl[bin_num]
         distance_sam = [matrixl[b][sample_num] for b in range(len(matrixl))]
+        newick       = self.chromosome.clustering_to_tree(matrix, sample_names)
 
         # alignment = self.alignment
         # position  = self.position
@@ -1494,6 +1498,10 @@ class ChromosomeController(flx.PyComponent):
         # # self.positionNp               = np.zeros((self.bin_count, self.bin_snps_max), self.type_positions)
 
         # self.chromosome.show_info(order, bin_num, sample_num)
+
+        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.to_tree.html
+        # rootnode, nodelist = hierarchy.to_tree(Z, rd=True)
+
 
         self.root.graph.show_info({
             "genome_name" : self.genome_name,
@@ -1504,10 +1512,12 @@ class ChromosomeController(flx.PyComponent):
             "sample_name" : self.sample_name,
             "distance_bin": distance_bin,
             "distance_sam": distance_sam,
+            "sample_names": sample_names,
 
             "order"       : order,
             "bin_num"     : bin_num,
             "sample_num"  : sample_num,
+            "newick"      : newick
         })
 
 
