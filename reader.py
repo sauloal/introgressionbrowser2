@@ -232,7 +232,19 @@ class Chromosome():
         return self._is_loaded
 
     @property
-    def matrix(self) -> np.ndarray:
+    def bins_count_matrix(self) -> np.ndarray:
+        return self.bins_countNp
+
+    @property
+    def bins_dist_matrix(self) -> np.ndarray:
+        return self.bins_distNp
+
+    @property
+    def chrom_count_matrix(self) -> np.ndarray:
+        return self.chrom_countNp
+
+    @property
+    def chrom_dist_matrix(self) -> np.ndarray:
         return self.chrom_distNp
 
     @property
@@ -331,7 +343,7 @@ class Chromosome():
         ]
         vals = [getattr(self,n) for n in names]
 
-        return (names, vals)
+        return names, vals
 
     def _get_meta(self):
         type_matrix_counter_name   = self.type_matrix_counter.__name__
@@ -489,15 +501,22 @@ class Chromosome():
 
             # print(samples)
 
-            samples                   = [s.split(":")[0]            for s in samples]
-            samples                   = [s if len(s) == 3 else None for s in samples]
+            samples                   = (s.split(":")[0]                           for s in samples)
+            samples                   = (s if len(s) == 3 else None                for s in samples)
+            samples                   = (s if s is None   else s.replace("/", "|") for s in samples)
+            samples                   = (s if s != ".|."  else None                for s in samples)
+            samples                   = (s if s is None   else s.split("|")        for s in samples)
+ 
+            try:
+                samples               = [s if s is None   else tuple([int(s[0]), int(s[1])]) for s in samples]
+            except ValueError:
+                print("ERROR PARSING SAMPLES: ", samples)
+                raise
 
             if all([s is None for s in samples]):
                 print(f'E {chrom} {pos:12,d} {ref} {alts}')
                 continue
 
-            # samples = [s.replace("|", "").replace("/", "") if s is not None else None for s in samples]
-            samples                   = [tuple([int(i) for i in s.replace("/", "|").split("|")]) if s is not None else None for s in samples]
             vals                      = chromosome_matrix[binNum]
             paiw                      = bin_pairwise_count[binNum]
             chromosome_snps          += 1
@@ -968,15 +987,19 @@ class Chromosome():
         self.metric = metric
 
         self.matrix_size                   = info_dict["matrix_size"]
-        print("metric", metric)
-        print("self.chrom_distNp.shape", self.chrom_distNp.shape)
-        if metric == METRIC_RAW_NAME:
-            assert 0 == self.chrom_distNp.shape[0]
-        else:
-            assert self.matrix_size == self.chrom_distNp.shape[0]
-            assert self.matrix_size == self.chrom_distNp.shape[1]
-
         self.bin_count                     = info_dict["bin_count"]
+        print("metric     ", metric)
+        print("matrix_size", self.matrix_size)
+        print("self.chrom_distNp.shape", self.chrom_distNp.shape)
+        print("self.bins_countNp.shape", self.bins_countNp.shape)
+        if metric == METRIC_RAW_NAME:
+            assert self.bin_count   == self.bins_countNp.shape[0]
+            assert self.matrix_size == self.bins_countNp.shape[1]
+            assert 0                == self.chrom_distNp.shape[0]
+        else:
+            assert 0                == self.bins_countNp.shape[0]
+            assert self.matrix_size == self.chrom_distNp.shape[0]
+
         self.bin_min                       = info_dict["bin_min"]
         self.bin_max                       = info_dict["bin_max"]
         self.bin_snps_min                  = info_dict["bin_snps_min"]
@@ -993,7 +1016,6 @@ class Chromosome():
             assert 0              == len(self.bins_trees)
         else:
             assert self.bin_count == self.bins_distNp .shape[0]
-            assert self.bin_count == self.bins_distNp .shape[1]
             assert self.bin_count == len(self.bins_trees)
             assert 0              == self.bins_countNp.shape[0]
 
@@ -1148,7 +1170,14 @@ class Chromosome():
     def matrix_bin(self, binNum: int) -> np.ndarray:
         assert binNum <= self.bin_max
         assert binNum >= 0
-        return self.matrix[binNum,:]
+        # print("matrix_bin :: binNum", binNum)
+        # print("matrix_bin :: metric", self.metric)
+        if self.metric == METRIC_RAW_NAME:
+            print(self.bins_count_matrix, self.bins_count_matrix.shape)
+            return self.bins_count_matrix[binNum,:]
+        else:
+            print(self.bins_dist_matrix, self.bins_dist_matrix.shape)
+            return self.bins_dist_matrix[binNum,:]
 
     def matrix_bin_square(self, binNum: int) -> np.ndarray:
         matrix_bin = self.matrix_bin(binNum)
@@ -2087,11 +2116,14 @@ class BGzip():
 
     def _save(self):
         print(f"saving gzj to {self.gzj_file}")
-        json.dump(list(self._data.items()), open(self.gzj_file, 'wt'), indent=1)
+        with open(self.gzj_file, 'wt') as fhd:
+            json.dump(list(self._data.items()), fhd, indent=1)
+            fhd.flush()
 
     def _load(self):
         print(f"reading gzj from {self.gzj_file}")
-        self._data = OrderedDict(json.load(open(self.gzj_file, 'rt')))
+        with open(self.gzj_file, 'rt') as fhd:
+            self._data = OrderedDict(json.load(fhd))
 
     def _parse_gzi(self):
         print(f"reading gzi from {self.gzi_file}")
@@ -2898,15 +2930,15 @@ def parse_tsv(rename_tsv: str):
 
 
 parser = argparse.ArgumentParser(description='Introgression Browser V3.0')
+parser.add_argument('--create-if-not-exists', action='store_true', help="Create database if does not exiss")
+parser.add_argument('--index-only'          , action='store_true', help="Index GZ file and exit")
+parser.add_argument('--debug'               , action='store_true', help="debug mode")
+parser.add_argument('--version'             , action='version'   , version=f'{__name} {__version__}')
 parser.add_argument('--bin-size'            , '-b', nargs='?', default=DEFAULT_BIN_SIZE, type=int, metavar="BIN SIZE"  , help=f'Bin Size [{DEFAULT_BIN_SIZE}]')
 parser.add_argument('--threads'             , '-t', nargs='?', default=DEFAULT_THREADS , type=int, metavar="THREADS"   , help=f'Number of threads [{DEFAULT_THREADS}]')
 parser.add_argument('--metric'              , '-m', nargs='?', default=DEFAULT_METRIC  , type=str, metavar="METRIC"    , help='Metric [{DEFAULT_METRIC}]')
 parser.add_argument('--rename-tsv'          , '-r', nargs='?', default=None            , type=str, metavar="RENAME-TSV", help='TSV to rename sample names')
-parser.add_argument('--create-if-not-exists', action='store_true', help="Create database if does not exiss")
-parser.add_argument('--index-only'          , action='store_true', help="Index GZ file and exit")
-parser.add_argument('--debug'               , action='store_true', help="debug mode")
-parser.add_argument('--version'             , action='version', version=f'{__name} {__version__}')
-parser.add_argument('filename'              , type=str, metavar="FILENAME", help="VCF BGZip filename")
+parser.add_argument('filename'              ,                                            type=str, metavar="FILENAME"  , help="VCF BGZip filename")
 
 def main():
     args                 = parser.parse_args()

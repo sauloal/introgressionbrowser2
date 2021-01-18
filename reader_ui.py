@@ -14,7 +14,6 @@ from matplotlib.colors import Normalize
 
 import flexx
 from   flexx import flx, ui
-from pscript import RawJS
 
 import reader
 
@@ -123,23 +122,23 @@ class Graph(flx.CanvasWidget):
 
         self.set_capture_wheel(False)
         # self.apply_style('overflow: scroll;')  # enable scrolling
-        self.ctx          = self.node.getContext('2d')
-        self.node.id      = "plot"
-        self.node.onclick = self.onclick
+        self.ctx             = self.node.getContext('2d')
+        self.node.id         = "plot"
+        self.node.onclick    = self.onclick
         self.set_css_class("graph")
 
-        self.y_start     = None
-        self.x_start     = None
-        self.y_max       = None
-        self.x_max       = None
+        self.y_start         = None
+        self.x_start         = None
+        self.y_max           = None
+        self.x_max           = None
 
-        self.genome_name       = None
-        self.metric            = None
-        self.chromosome_name   = None
-        self.sample_name       = None
-        self.order             = None
-        self.bin_width          = None
-        self.font_height       = None
+        self.genome_name     = None
+        self.metric          = None
+        self.chromosome_name = None
+        self.sample_name     = None
+        self.order           = None
+        self.bin_width       = None
+        self.font_height     = None
 
     def onclick(self, ev):
         ev_type     = ev.type
@@ -168,19 +167,21 @@ class Graph(flx.CanvasWidget):
         print("shiftKey", shiftKey)
         print("ctrlKey ", ctrlKey )
 
-        if  (
-            self.x_start          is None or
-            self.x_max            is None or
-            self.y_start          is None or
-            self.y_max            is None or
-            self.font_height      is None or
-            self.genome_name      is None or
-            self.metric           is None or
-            self.chromosome_name  is None or
-            self.sample_name      is None or
-            self.order            is None or
-            self.bin_width        is None
-        ):
+        if  any([v is None for v in
+            [
+                self.x_start        ,
+                self.x_max          ,
+                self.y_start        ,
+                self.y_max          ,
+                self.font_height    ,
+                self.genome_name    ,
+                self.metric         ,
+                self.chromosome_name,
+                self.sample_name    ,
+                self.order          ,
+                self.bin_width
+            ]
+        ]):
             return
 
         if (
@@ -243,18 +244,18 @@ class Graph(flx.CanvasWidget):
     def reset(self, zero=True):
         print("Graph.reset", zero)
 
-        self.y_start           = None
-        self.x_start           = None
-        self.y_max             = None
-        self.x_max             = None
+        self.y_start          = None
+        self.x_start          = None
+        self.y_max            = None
+        self.x_max            = None
 
-        self.genome_name       = None
-        self.metric            = None
-        self.chromosome_name   = None
-        self.sample_name       = None
-        self.order             = None
-        self.bin_width         = None
-        self.font_height       = None
+        self.genome_name      = None
+        self.metric           = None
+        self.chromosome_name  = None
+        self.sample_name      = None
+        self.order            = None
+        self.bin_width        = None
+        self.font_height      = None
 
         if hasattr(self.ctx, 'self.width'):
             print("Graph.reset :: clearing")
@@ -1097,6 +1098,37 @@ class ChromosomeController(flx.PyComponent):
 
         self.reset()
 
+    def _get_ordered(self, order: str, sample_name: str):
+        matrix       = self.matrix_sample(sample_name)
+
+        # print(f"ChromosomeController.display :: np.nanmin(matrix)", np.nanmin(matrix))
+        # print(f"ChromosomeController.display :: np.nanmax(matrix)", np.nanmax(matrix))
+        matrix       = matrix.astype(np.float)
+        matrix_min   = float(np.nanmin(matrix))
+        matrix_max   = float(np.nanmax(matrix))
+        if matrix_min != matrix_max:
+            matrix[matrix == np.nanmin(matrix)] = None
+            matrix[matrix == np.nanmax(matrix)] = None
+            matrix_min = float(np.nanmin(matrix))
+            matrix_max = float(np.nanmax(matrix))
+
+        orderer = None
+        if   order is None or order == '-':
+            orderer = range(len(self.sample_names))
+        elif order == 'leaf_ordering_default':
+            orderer = self.chromosome.leaf_ordering_defaultNp
+        elif order == 'leaf_ordering_optimal':
+            orderer = self.chromosome.leaf_ordering_optimalNp
+        else:
+            raise ValueError(f"no such orderer {orderer}")
+
+        matrix       = matrix[:,orderer]
+        sample_names = [self.sample_names[s] for s in orderer]
+        # print("orderer", orderer)
+        # print("self.sample_names", self.sample_names)
+        # print("sample_names", sample_names)
+        return matrix_min, matrix_max, matrix, sample_names
+
     def reset(self):
         print("ChromosomeController.reset")
         self.chromosome                = None
@@ -1317,38 +1349,6 @@ class ChromosomeController(flx.PyComponent):
 
         return res
 
-    def _get_ordered(self, order: str, sample_name: str):
-        matrix       = self.matrix_sample(sample_name)
-
-        # print(f"ChromosomeController.display :: np.nanmin(matrix)", np.nanmin(matrix))
-        # print(f"ChromosomeController.display :: np.nanmax(matrix)", np.nanmax(matrix))
-        matrix       = matrix.astype(np.float)
-        matrix_min   = float(np.nanmin(matrix))
-        matrix_max   = float(np.nanmax(matrix))
-        if matrix_min != matrix_max:
-            matrix[matrix == np.nanmin(matrix)] = None
-            matrix[matrix == np.nanmax(matrix)] = None
-            matrix_min = float(np.nanmin(matrix))
-
-            matrix_max = float(np.nanmax(matrix))
-
-        orderer = None
-        if   order is None or order == '-':
-            orderer = range(len(self.sample_names))
-        elif order == 'leaf_ordering':
-            orderer = self.chromosome.leaf_ordering
-        elif order == 'optimal_leaf_ordering':
-            orderer = self.chromosome.optimal_leaf_ordering
-        else:
-            raise ValueError(f"no such orderer {orderer}")
-
-        matrix       = matrix[:,orderer]
-        sample_names = [self.sample_names[s] for s in orderer]
-        # print("orderer", orderer)
-        # print("self.sample_names", self.sample_names)
-        # print("sample_names", sample_names)
-        return matrix_min, matrix_max, matrix, sample_names
-
     def display(self, order):
         print(f"ChromosomeController.display :: sample_name {self.sample_name} color_name {self.color_name}")
 
@@ -1384,7 +1384,7 @@ class ChromosomeController(flx.PyComponent):
             bin_acolor   = bin_acolor.tolist()
             # print("bin_cmapg", bin_cmapg)
 
-            order   = 'optimal_leaf_ordering'
+            order   = 'leaf_ordering_optimal'
             print(f"ChromosomeController.display :: reordering: {order}")
             matrix_min, matrix_max, matrix, sample_names = self._get_ordered(order, self.sample_name)
             # print(f"ChromosomeController.display :: matrix", matrix)
