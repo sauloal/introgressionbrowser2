@@ -8,7 +8,7 @@ import time
 
 import numpy as np
 # from matplotlib.cm import ScalarMappable
-from matplotlib.cm import get_cmap, ScalarMappable
+from matplotlib.cm     import get_cmap, ScalarMappable
 from matplotlib.colors import Normalize
 #, Colormap
 
@@ -18,9 +18,15 @@ from   flexx import flx, ui
 import reader
 
 DEBUG                 = True
-MIN_WIDTH             = 800
-FONT_SIZE             = 12
+# FONT_NAME             = "Courier New"
+# FONT_WIDTH_RATIO      = 0.42 # https://www.lifewire.com/aspect-ratio-table-common-fonts-3467385
+FONT_NAME             = "Monospace"
+FONT_WIDTH_RATIO      = 0.50 # https://www.lifewire.com/aspect-ratio-table-common-fonts-3467385
+FONT_SIZE             = 14
 FONT_SIZE_MIN_DISPLAY = 10
+MIN_CHARACTERS_WIDE   = 100
+MIN_WIDTH             = int(MIN_CHARACTERS_WIDE * FONT_SIZE * FONT_WIDTH_RATIO)
+PNG_QUALITY           = 1.0
 
 color_maps = {
     'Perceptually Uniform Sequential': [
@@ -324,12 +330,12 @@ class Graph(flx.CanvasWidget):
         self.reset()
 
         ctx                    = self.ctx
-        
         min_display_font       = FONT_SIZE_MIN_DISPLAY
         font_size              = FONT_SIZE
         font_height            = font_size
-        font_width             = font_size * 0.48 #https://www.lifewire.com/aspect-ratio-table-common-fonts-3467385
-        header_lines           = 7 + 2
+        font_width             = font_size * FONT_WIDTH_RATIO
+        font_name              = FONT_NAME
+        header_lines           = 7
 
         self.genome_name       = genome_name
         self.metric            = metric
@@ -344,7 +350,7 @@ class Graph(flx.CanvasWidget):
         print(f"Graph.set_points :: coord_data :: font_width             {font_width}")
 
         header_height          = header_lines * font_height + font_height
-        max_bin_name_length    = max([len(b) for  b in binnames]) + 7
+        max_bin_name_length    = max([len(b) for  b in binnames]) + 6
         max_bin_name_size      = max_bin_name_length    * font_width
         max_bin_name_offset    = max_bin_name_size            + font_width + header_height
         max_bin_name_offset_h  = max_bin_name_size      * 1.2 + font_width + header_height
@@ -405,7 +411,7 @@ class Graph(flx.CanvasWidget):
         if font_size >= min_display_font:
             print(f"Graph.set_points :: Writing Labels")
 
-            ctx.font        = f"{font_size}px Courier New"
+            ctx.font        = f"{font_size}px {font_name}"
             ctx.strokeStyle = 'black'
             ctx.fillStyle   = 'black'
 
@@ -438,7 +444,6 @@ class Graph(flx.CanvasWidget):
                     ctx.stroke()
                     ctx.restore()
                 ctx.restore()
-
 
             ##
             ## Write Labels :: Sample Names
@@ -481,30 +486,31 @@ class Graph(flx.CanvasWidget):
                 text_x  = font_width
                 text_y  = 2 * font_height
                 ctx.fillText(("Chromosome    : "+title_fmt).format(chromosome_name  ), text_x, text_y)
+
                 text_x += (title_max_len + 16 + 2) * font_width
                 text_y  = 2 * font_height
-                ctx.fillText(("Bin Width     : "+title_fmt).format(bin_width        ), text_x, text_y)
+                ctx.fillText(("Reference     : "+title_fmt).format(reference_name   ), text_x, text_y)
 
                 text_x  = font_width
                 text_y  = 3 * font_height
                 ctx.fillText(("Metric        : "+title_fmt).format(metric           ), text_x, text_y)
                 text_x += (title_max_len + 16 + 2) * font_width
                 text_y  = 3 * font_height
-                ctx.fillText(("Reference     : "+title_fmt).format(reference_name   ), text_x, text_y)
+                ctx.fillText(("Order         : "+title_fmt).format(order            ), text_x, text_y)
 
                 text_x  = font_width
                 text_y  = 4 * font_height
                 ctx.fillText(("First Position: "+title_fmt).format(first_position   ), text_x, text_y)
                 text_x += (title_max_len + 16 + 2) * font_width
                 text_y  = 4 * font_height
-                ctx.fillText(("Last Position : "+title_fmt).format(last_position    ), text_x, text_y)
+                ctx.fillText(("Bin Width     : "+title_fmt).format(bin_width        ), text_x, text_y)
 
                 text_x  = font_width
                 text_y  = 5 * font_height
-                ctx.fillText(("# SNPs        : "+title_fmt).format(snps             ), text_x, text_y)
+                ctx.fillText(("Last Position : "+title_fmt).format(last_position    ), text_x, text_y)
                 text_x += (title_max_len + 16 + 2) * font_width
                 text_y  = 5 * font_height
-                ctx.fillText(("Order         : "+title_fmt).format(order            ), text_x, text_y)
+                ctx.fillText(("# SNPs        : "+title_fmt).format(snps             ), text_x, text_y)
 
                 ctx.restore()
 
@@ -722,7 +728,7 @@ class Forms(flx.Widget):
     genome           = flx.StringProp("-", settable=True, doc="Genome name")
     bin_width        = flx.StringProp("-", settable=True, doc="Bin Width name")
     metric           = flx.StringProp("-", settable=True, doc="Metric name")
-    chromosome       = flx.StringProp("-", settable=True, doc="Genome name")
+    chromosome       = flx.StringProp("-", settable=True, doc="Chromosome name")
     sample           = flx.StringProp("-", settable=True, doc="Sample name")
     order            = flx.StringProp("-", settable=True, doc="Order name")
 
@@ -765,14 +771,14 @@ class Forms(flx.Widget):
         return main_div
 
     def _download_image(self, *ev):
-        print("_download_image")
-        canvas = self._getElementById("plot")
-        img    = canvas.toDataURL("image/png")
+        if len(ev) > 0 and ev[0]["isTrusted"]:
+            canvas = self._getElementById("plot")
+            img    = canvas.toDataURL("image/png", PNG_QUALITY)
 
-        link = self._getElementById('link')
-        link.setAttribute('download', 'plot.png')
-        link.setAttribute('href', img.replace("image/png", "image/octet-stream"))
-        link.click()
+            link = self._getElementById('link')
+            link.setAttribute('download', 'ibrowser_'+self.genome+'_'+self.chromosome+'_'+self.bin_width+'_'+self.metric+'_'+self.sample+'.png')
+            link.setAttribute('href', img.replace("image/png", "image/octet-stream"))
+            link.click()
 
     def _render_dom(self):
         print("Forms._render_dom")
@@ -1486,10 +1492,12 @@ class ChromosomeController(flx.PyComponent):
         matrix_min, matrix_max, matrix, sample_names = self._get_ordered(order, self.sample_name)
 
         bin_snps     = self.bin_snps[bin_num]
+        print(f"ChromosomeController.show_info ::", matrix.shape)
         matrixl      = matrix.tolist()
         distance_bin = matrixl[bin_num]
         distance_sam = [matrixl[b][sample_num] for b in range(len(matrixl))]
-        newick       = self.chromosome.clustering_to_tree(matrix, sample_names)
+        # newick       = self.chromosome.clustering_to_tree(matrix, sample_names)
+        newick       = self.chromosome.chrom_tree
 
         # alignment = self.alignment
         # position  = self.position

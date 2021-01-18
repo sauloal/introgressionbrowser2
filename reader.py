@@ -22,7 +22,7 @@ from   scipy.spatial.distance  import pdist, squareform
 
 NUM_CPUS    = math.ceil(mp.cpu_count() * 0.8)
 __name      = "iBrowser"
-__version__ = "3.1"
+__version__ = "3.2"
 
 DEBUG                         = False
 DEBUG_MAX_BIN                 = 15
@@ -86,6 +86,8 @@ ChromosomeNamesType  = typing.List[str]
 ChromosomesType      = typing.OrderedDict[str, typing.OrderedDict[str, "Chromosome"]]
 RenameDictType       = typing.Union[typing.OrderedDict, None]
 BinTreesType         = typing.List[str]
+
+
 
 class Chromosome():
     """
@@ -734,12 +736,12 @@ class Chromosome():
 
         data['chrom_distNp'           ] = self.chrom_distNp.tolist()
         data['chrom_linkageNp'        ] = self.chrom_linkageNp.tolist()
-        # data['chrom_tree'             ] = self.chrom_tree
+        data['chrom_tree'             ] = self.chrom_tree
 
         data['bins_countNp'           ] = self.bins_countNp.tolist()
         data['bins_distNp'            ] = self.bins_distNp.tolist()
         data['bins_linkageNp'         ] = self.bins_linkageNp.tolist()
-        # data['bins_trees'             ] = self.bins_trees
+        data['bins_trees'             ] = self.bins_trees
 
         data['leaf_ordering_defaultNp'] = self.leaf_ordering_defaultNp.tolist()
         data['leaf_ordering_optimalNp'] = self.leaf_ordering_optimalNp.tolist()
@@ -897,7 +899,6 @@ class Chromosome():
         print(f"{'saving numpy array:':.<32s}{self.file_name:.>30s}")
         print(self)
 
-
         info_names, info_vals      = self._get_infos()
         meta_names, meta_vals      = self._get_meta()
 
@@ -985,6 +986,9 @@ class Chromosome():
         assert self.metric == metric
         assert metric in METRIC_VALIDS, f"invalid metric {metric}. valid metrics are {'n '.join(METRIC_VALIDS)}"
         self.metric = metric
+
+        self.chrom_tree                    = meta_dict["chrom_tree"]
+        # print("chrom_tree ", self.chrom_tree)
 
         self.matrix_size                   = info_dict["matrix_size"]
         self.bin_count                     = info_dict["bin_count"]
@@ -1173,10 +1177,10 @@ class Chromosome():
         # print("matrix_bin :: binNum", binNum)
         # print("matrix_bin :: metric", self.metric)
         if self.metric == METRIC_RAW_NAME:
-            print(self.bins_count_matrix, self.bins_count_matrix.shape)
+            # print(self.bins_count_matrix, self.bins_count_matrix.shape)
             return self.bins_count_matrix[binNum,:]
         else:
-            print(self.bins_dist_matrix, self.bins_dist_matrix.shape)
+            # print(self.bins_dist_matrix, self.bins_dist_matrix.shape)
             return self.bins_dist_matrix[binNum,:]
 
     def matrix_bin_square(self, binNum: int) -> np.ndarray:
