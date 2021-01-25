@@ -28,8 +28,8 @@ FONT_SIZE_MIN_DISPLAY = 10
 MIN_CHARACTERS_WIDE   = 100
 MIN_WIDTH             = int(MIN_CHARACTERS_WIDE * FONT_SIZE * FONT_WIDTH_RATIO)
 PNG_QUALITY           = 1.0
-TREE_WIDTH  = 500
-TREE_HEIGHT = 500
+TREE_WIDTH            = 500
+TREE_HEIGHT           = 500
 
 
 color_maps = {
@@ -131,7 +131,6 @@ wget http://bl.ocks.org/rdmpage/raw/4224658/3733013c4b15d77554848674fa32ebb0d3d7
 #wget http://blog.accursedware.com/jquery-svgpan/jquery-svgpan.js
 wget https://ariutta.github.io/svg-pan-zoom/dist/svg-pan-zoom.js -O svg-pan-zoom-3.6.0.js
 """
-
 """
 wget https://raw.githubusercontent.com/veg/phylotree.js/0.1.10/src/main.js -O phylotree-0.1.10.js
 wget https://raw.githubusercontent.com/veg/phylotree.js/0.1.10/phylotree.css -O phylotree.css
@@ -142,15 +141,19 @@ wget https://netdna.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.js -O bootstra
 
 wget https://d3js.org/d3.v3.js -O d3.v3.js
 wget https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore.js -O underscore-1.8.3.js
+
+wget https://raw.githubusercontent.com/exupero/saveSvgAsPng/v1.4.17/src/saveSvgAsPng.js -O saveSvgAsPng-1.4.17.js
 """
 
-local_assets = ["jquery-3.5.1.js", "svg-pan-zoom-3.6.0.js", "treelib.js", "treelib_show.js"]
+# local_assets = ["jquery-3.5.1.js", "svg-pan-zoom-3.6.0.js", "treelib.js", "treelib_show.js"]
 
-# local_assets  = ["jquery-3.5.1.js"]
-# local_assets += ["bootstrap-3.3.5.css", "bootstrap-theme-3.3.5.css", "bootstrap-3.3.5.js"]
-# local_assets += ["d3.v3.js"]
-# local_assets += ["underscore-1.8.3.js"]
-# local_assets += ["phylotree-0.1.10.js", "phylotree.css"]
+local_assets  = ["jquery-3.5.1.js"]
+local_assets += ["bootstrap-3.3.5.css", "bootstrap-theme-3.3.5.css", "bootstrap-3.3.5.js"]
+local_assets += ["d3.v3.js"]
+local_assets += ["underscore-1.8.3.js"]
+local_assets += ["phylotree-0.1.10.js", "phylotree.css", "phylotree_show.js"]
+local_assets += ["saveSvgAsPng-1.4.17.js"]
+# local_assets += ["svg.js"]
 
 for asset in local_assets:
     print(f"adding asset {asset}")
@@ -222,7 +225,7 @@ class Graph(flx.CanvasWidget):
             self.click(ev_offsetX, ev_offsetY, ev_shiftKey, ev_ctrlKey)
 
     def click(self, x, y, shiftKey, ctrlKey):
-        print("type    ", "click"    )
+        print("type    ", "click" )
         print("X       ", x )
         print("Y       ", y )
         print("shiftKey", shiftKey)
@@ -704,7 +707,7 @@ class Forms(flx.Widget):
             height: 25px;
         }
 
-        .btn_download_image {
+        .btn_download_plot {
             background-color: lightgreen;
             width: 10%;
             height: 26px;
@@ -779,6 +782,9 @@ class Forms(flx.Widget):
             background-color: lightgreen;
         }
 
+        #svg_div_par {
+            overflow-y: scroll;
+        }
     """
 
     genomes          = flx.ListProp(  [] , settable=True, doc="List of genomes")
@@ -809,6 +815,9 @@ class Forms(flx.Widget):
     _sel_samples     = "Select sample"
     _sel_colors      = "Select color"
 
+    _tree_id        = "svg_tree"
+
+
     def _getElementById(self, eid):
         global window
         el = window.document.getElementById(eid)
@@ -833,15 +842,39 @@ class Forms(flx.Widget):
         # self.reaction
         return main_div
 
-    def _download_image(self, *ev):
-        if len(ev) > 0 and ev[0]["isTrusted"]:
-            canvas = self._getElementById("plot")
-            img    = canvas.toDataURL("image/png", PNG_QUALITY)
+    def _download_image(self, elid, filename):
+        canvas = self._getElementById(elid)
+        img    = canvas.toDataURL("image/png", PNG_QUALITY)
 
-            link = self._getElementById('link')
-            link.setAttribute('download', 'ibrowser_'+self.genome+'_'+self.chromosome+'_'+self.bin_width+'_'+self.metric+'_'+self.sample+'.png')
-            link.setAttribute('href', img.replace("image/png", "image/octet-stream"))
-            link.click()
+        link = self._getElementById('link')
+        link.setAttribute('download', filename)
+        link.setAttribute('href', img.replace("image/png", "image/octet-stream"))
+        link.click()
+
+    def _download_plot(self, *ev):
+        if len(ev) > 0 and ev[0]["isTrusted"]:
+            filename = 'ibrowser_'+self.genome+'_'+self.chromosome+'_'+self.bin_width+'_'+self.metric+'_'+self.sample+'.png'
+            self._download_image("plot", filename)
+
+    def _download_tree(self, tree_id, sample_name, bin_start, bin_end, *ev):
+        if len(ev) > 0 and ev[0]["isTrusted"]:
+            print(tree_id, sample_name, bin_start, bin_end, ev)
+
+            filename = 'ibrowser_'+self.genome+'_'+self.chromosome+'_'+self.bin_width+'_'+self.metric+'_'+self.sample+'_'+sample_name+'_'+bin_start+'_'+bin_end+'_tree.png'
+            # self._download_image(self._tree_id, filename)
+            
+            # def clbk(uri):
+            #     print("svgAsDataUri "+ uri)
+            # svgAsDataUri(d3.select(self._tree_id).node(), {}, clbk)
+
+            saveSvgAsPng(window.document.getElementById(tree_id), filename)
+
+            # url = svg_download(self._tree_id)
+
+            # link = self._getElementById('link')
+            # link.setAttribute('download', filename)
+            # link.setAttribute('href', url)
+            # link.click()
 
     def _close_info_cell(self, *ev):
         if len(ev) > 0 and ev[0]["isTrusted"]:
@@ -926,9 +959,9 @@ class Forms(flx.Widget):
             self.sel_colors_el = _cel('select', {"id": "sel_colors", "class": "form_sel", "onchange": gen_getter_and_setter("sel_colors", self.set_color)}, *colors_opts)
             els += [self.sel_colors_el]
 
-        _download_image     = self._download_image
-        btn_download_image  = _cel('button', {"class": "btn btn_download_image", "onclick": _download_image}, "Download", _cel("a", {"id": "link"}, ""))
-        els                += [btn_download_image]
+        _download_plot     = self._download_plot
+        btn_download_plot  = _cel('button', {"class": "btn btn_download_plot", "onclick": _download_plot}, "Download", _cel("a", {"id": "link"}, ""))
+        els               += [btn_download_plot]
         # for k,v in [
         #         ["Genome"    , self.genome    ],
         #         ['Bin Width' , self.bin_width ],
@@ -1065,52 +1098,61 @@ class Forms(flx.Widget):
         iels.append(_cel('button', {"class": "btn btn_download_info", "onclick": _download_info_cell_AL}, "All"))
 
         _close_info_cell = self._close_info_cell
-        iels.append(_cel('button', {'class': 'btn btn_cell_close', "onclick": _close_info_cell}, "X"))
+        iels.append(_cel('button', {'class': 'btn btn_cell_close'   , "onclick": _close_info_cell}, "X"))
 
         tree_opts = []
         tree_opt  = None
+        # for k, v, s in [
+        #         # ["cladogram"         , "Cladogram"            , False],
+        #         # ["rectanglecladogram", "Rectangular cladogram", False],
+        #         ["phylogram"         , "Phylogram"            , True ],
+        #         ["circle"            , "Circle tree"          , False],
+        #         ["circlephylogram"   , "Circle phylogram"     , False]
+        # ]:
+        #     if s:
+        #         tree_opt = k
+        #     tree_opts.append(_cel('option', {'value': k, 'selected': 'selected' if s else None}, v))
+
         for k, v, s in [
-                # ["cladogram"         , "Cladogram"            , False],
-                # ["rectanglecladogram", "Rectangular cladogram", False],
                 ["phylogram"         , "Phylogram"            , True ],
                 ["circle"            , "Circle tree"          , False],
-                ["circlephylogram"   , "Circle phylogram"     , False]
         ]:
             if s:
                 tree_opt = k
             tree_opts.append(_cel('option', {'value': k, 'selected': 'selected' if s else None}, v))
 
         _get_and_set    = self._get_and_set
-        _tree_id        = "svg_tree"
+        _tree_id        = self._tree_id
         
         def _show_plot(drawing_type):
             print("_show_plot", drawing_type)
 
             global window
 
-            w   = window.innerWidth  * 0.85
-            h   = window.innerHeight * 0.85
+            width    = int(window.innerWidth   * 0.85)
+            height_e = int(window.innerHeight  * 0.85)
+            height   = int(len(sample_names) * 12 * 1.26)
 
             svg = window.document.createElementNS('http://www.w3.org/2000/svg', 'svg')
             svg.setAttribute("id"     , _tree_id)
             svg.setAttribute("version", "1.1")
-            svg.setAttribute('width'  , w)
-            svg.setAttribute('height' , h)
-
-            # iels.append(_cel('div'   , {'id': , 'class': '', 'style': }))
+            svg.setAttribute('width'  , width)
+            svg.setAttribute('height' , height)
 
             div = window.document.createElement("div")
             div.setAttribute("id"     , 'svg_div')
             div.setAttribute("class"  , 'svg_div')
-            div.setAttribute("style"  , f'width:{w}px;height:{h}px;background-color:white;border:1px solid rgb(228,228,228);')
+            div.setAttribute("style"  , f'width:{width}px;height:{height}px;background-color:white;border:1px solid rgb(228,228,228);')
             div.append(svg)
 
             par = window.document.getElementById('svg_div_par')
+            par.setAttribute("style", f'width:{width+20}px;height:{height_e/1.5}px;')
             par.append(div)
+            # par.append(btn)
 
-            print(drawing_type, _tree_id, w, h)
+            # print(drawing_type, _tree_id, w, h)
 
-            showtree(drawing_type, _tree_id, newick, w, h)
+            showtree(drawing_type, _tree_id, newick, width, height)
 
         def _show_first_plot():
             print(f"showing first plot {tree_opt}")
@@ -1121,7 +1163,13 @@ class Forms(flx.Widget):
 
         iels.append(_cel('span'  , {"class": "h4"}, "Tree"))
         iels.append(_cel('select', {"class": "sel sel_tree_type", "id": "tree_sel", "onchange": gen_getter_and_setter("tree_sel", _show_plot)}, *tree_opts))
-        iels.append(_cel('p'     , {'id': 'message'}, ''))
+        # iels.append(_cel('p'     , {'id': 'message'}, ''))
+
+        def _download_tree_l(*ev):
+            self._download_tree(_tree_id, sample_name, bin_start, bin_end, *ev)
+
+        iels.append(_cel('button', {'class': 'btn btn_download_info', 'onclick': _download_tree_l}, 'Download Tree Image'))
+
         iels.append(_cel('br'))
 
         iels.append(_cel('div'   , {'id': 'svg_div_par'}))
@@ -1133,7 +1181,7 @@ class Forms(flx.Widget):
         #     )
         # ))
 
-        window.setTimeout(_show_first_plot, 1500)
+        window.setTimeout(_show_first_plot, 1000)
 
         """
             <select id="style">
