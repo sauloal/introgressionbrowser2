@@ -120,6 +120,7 @@ def _get_code(item):
     return open(filepath, 'r').read()
 
 """
+wget https://code.jquery.com/jquery-3.5.1.js
 wget https://code.jquery.com/jquery-3.5.1.min.js
 wget https://code.jquery.com/jquery-3.5.1.min.map
 """
@@ -127,11 +128,30 @@ wget https://code.jquery.com/jquery-3.5.1.min.map
 treelib.js
 http://bl.ocks.org/rdmpage/4224658
 wget http://bl.ocks.org/rdmpage/raw/4224658/3733013c4b15d77554848674fa32ebb0d3d713e5/treelib.js
-wget http://blog.accursedware.com/jquery-svgpan/jquery-svgpan.js
+#wget http://blog.accursedware.com/jquery-svgpan/jquery-svgpan.js
+wget https://ariutta.github.io/svg-pan-zoom/dist/svg-pan-zoom.js -O svg-pan-zoom-3.6.0.js
 """
-# "jquery-3.5.1.min.map", 
 
-local_assets = ["jquery-3.5.1.min.js", "jquery-svgpan.js", "treelib.js", "treelib_show.js"]
+"""
+wget https://raw.githubusercontent.com/veg/phylotree.js/0.1.10/src/main.js -O phylotree-0.1.10.js
+wget https://raw.githubusercontent.com/veg/phylotree.js/0.1.10/phylotree.css -O phylotree.css
+
+wget https://netdna.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.css -O bootstrap-3.3.5.css
+wget https://netdna.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.css -O bootstrap-theme-3.3.5.css
+wget https://netdna.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.js -O bootstrap-3.3.5.js
+
+wget https://d3js.org/d3.v3.js -O d3.v3.js
+wget https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore.js -O underscore-1.8.3.js
+"""
+
+local_assets = ["jquery-3.5.1.js", "svg-pan-zoom-3.6.0.js", "treelib.js", "treelib_show.js"]
+
+# local_assets  = ["jquery-3.5.1.js"]
+# local_assets += ["bootstrap-3.3.5.css", "bootstrap-theme-3.3.5.css", "bootstrap-3.3.5.js"]
+# local_assets += ["d3.v3.js"]
+# local_assets += ["underscore-1.8.3.js"]
+# local_assets += ["phylotree-0.1.10.js", "phylotree.css"]
+
 for asset in local_assets:
     print(f"adding asset {asset}")
     flx.assets.associate_asset(
@@ -759,15 +779,6 @@ class Forms(flx.Widget):
             background-color: lightgreen;
         }
 
-    """ + f"""
-        #svg_div, #svg_tree {{
-            width:{TREE_WIDTH}px;
-            height:{TREE_HEIGHT}px;
-        }}
-        #svg_div {{
-            background-color:white;
-            border:1px solid rgb(228,228,228);
-        }}
     """
 
     genomes          = flx.ListProp(  [] , settable=True, doc="List of genomes")
@@ -1074,7 +1085,36 @@ class Forms(flx.Widget):
         
         def _show_plot(drawing_type):
             print("_show_plot", drawing_type)
-            showtree(drawing_type, _tree_id, newick, TREE_WIDTH, TREE_HEIGHT)
+
+            global window
+
+            w   = window.innerWidth  * 0.85
+            h   = window.innerHeight * 0.85
+
+            svg = window.document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+            svg.setAttribute("id"     , _tree_id)
+            svg.setAttribute("version", "1.1")
+            svg.setAttribute('width'  , w)
+            svg.setAttribute('height' , h)
+
+            # iels.append(_cel('div'   , {'id': , 'class': '', 'style': }))
+
+            div = window.document.createElement("div")
+            div.setAttribute("id"     , 'svg_div')
+            div.setAttribute("class"  , 'svg_div')
+            div.setAttribute("style"  , f'width:{w}px;height:{h}px;background-color:white;border:1px solid rgb(228,228,228);')
+            div.append(svg)
+
+            par = window.document.getElementById('svg_div_par')
+            par.append(div)
+
+            print(drawing_type, _tree_id, w, h)
+
+            showtree(drawing_type, _tree_id, newick, w, h)
+
+        def _show_first_plot():
+            print(f"showing first plot {tree_opt}")
+            _show_plot(tree_opt)
 
         def gen_getter_and_setter(eid, f):
             return lambda x: _get_and_set(eid, f)
@@ -1084,25 +1124,14 @@ class Forms(flx.Widget):
         iels.append(_cel('p'     , {'id': 'message'}, ''))
         iels.append(_cel('br'))
 
-        iels.append(_cel('div'   , {'id': 'svg_div', 'class': 'svg_div'}))
+        iels.append(_cel('div'   , {'id': 'svg_div_par'}))
 
+        # iels.append(_cel('div'   , {'id': 'svg_div', 'class': 'svg_div', 'style': f"width:{TREE_WIDTH}px;height:{TREE_HEIGHT}px;background-color:white;border:1px solid rgb(228,228,228);"}))
         # iels.append(_cel('div'   , {'id': 'svg_div', 'class': 'svg_div'},
         #     _cel('svg'   , {'id': _tree_id, 'xmlns': 'http://www.w3.org/2000/svg', 'version': '1.1', 'height': TREE_HEIGHT, 'width': TREE_WIDTH},
         #         _cel('g', {'id': 'viewport'})
         #     )
         # ))
-
-        def _show_first_plot():
-            print(f"showing first plot {tree_opt}")
-            global window
-            svg = window.document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-            svg.setAttribute("id"     , _tree_id)
-            svg.setAttribute("version", "1.1")
-            svg.setAttribute('height' , TREE_HEIGHT)
-            svg.setAttribute('width'  , TREE_WIDTH)
-            div = window.document.getElementById('svg_div')
-            div.append(svg)
-            _show_plot(tree_opt)
 
         window.setTimeout(_show_first_plot, 1500)
 

@@ -6,6 +6,8 @@ if (!String.prototype.trim)
 
 function showtree(drawing_type, dst_id, newick, width, height)
 {
+	console.log("showtree :: drawing_type: " + drawing_type + " dst_id: " + dst_id + " width: " + width + " height: " + height);
+
 	var t   = new Tree();
 	newick  = newick.trim(newick);
 	t.Parse(newick);
@@ -129,6 +131,19 @@ function showtree(drawing_type, dst_id, newick, width, height)
 		
 		document.getElementById('message').innerHTML='Done';
 		// pan
-		$("#" + dst_id).svgPan('viewport');
+		// $("#" + dst_id).svgPan('viewport');
+		if ("tiger" in window) {
+			console.log("deleting previous tiger");
+			window.tiger.destroy();
+			delete window.tiger;
+		}
+
+		console.log("creating tiger :: DST: " + dst_id + " el: " + document.getElementById(dst_id));
+		window.tiger = svgPanZoom("#" + dst_id);
+		window.tiger.resize();
+		window.tiger.fit();
+		window.tiger.updateBBox();
+		window.tiger.fit();
+		window.tiger.center();
 	}
 }
