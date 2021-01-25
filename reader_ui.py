@@ -10,6 +10,7 @@ import numpy as np
 # from matplotlib.cm import ScalarMappable
 from matplotlib.cm     import get_cmap, ScalarMappable
 from matplotlib.colors import Normalize
+from urllib.request import urlopen, Request
 #, Colormap
 
 import flexx
@@ -27,6 +28,9 @@ FONT_SIZE_MIN_DISPLAY = 10
 MIN_CHARACTERS_WIDE   = 100
 MIN_WIDTH             = int(MIN_CHARACTERS_WIDE * FONT_SIZE * FONT_WIDTH_RATIO)
 PNG_QUALITY           = 1.0
+TREE_WIDTH  = 500
+TREE_HEIGHT = 500
+
 
 color_maps = {
     'Perceptually Uniform Sequential': [
@@ -103,7 +107,38 @@ def get_color_maps(map_name, min_val=0.0, max_val=1.0, levels=256, bad='pink', o
     f = lambda x: cmap(norm(x))
     return norm, cmap, f
 
+def _get_code(item):
+    """ Get a text item from _base_url
+    https://flexx.readthedocs.io/en/stable/examples/leaflet_src.html
+    """
+    # _base_url = 'file://./js'
+    # url = '%s/%s' % (_base_url, item)
+    # req = Request(url, headers={'User-Agent': 'flexx/%s' % flx.__version__})
+    # return urlopen(req).read().decode()
+    filepath = os.path.join("js", item)
+    assert os.path.exists(filepath)
+    return open(filepath, 'r').read()
 
+"""
+wget https://code.jquery.com/jquery-3.5.1.min.js
+wget https://code.jquery.com/jquery-3.5.1.min.map
+"""
+"""
+treelib.js
+http://bl.ocks.org/rdmpage/4224658
+wget http://bl.ocks.org/rdmpage/raw/4224658/3733013c4b15d77554848674fa32ebb0d3d713e5/treelib.js
+wget http://blog.accursedware.com/jquery-svgpan/jquery-svgpan.js
+"""
+# "jquery-3.5.1.min.map", 
+
+local_assets = ["jquery-3.5.1.min.js", "jquery-svgpan.js", "treelib.js", "treelib_show.js"]
+for asset in local_assets:
+    print(f"adding asset {asset}")
+    flx.assets.associate_asset(
+        __name__,
+        asset,
+        _get_code(asset),
+    )
 
 class Graph(flx.CanvasWidget):
     CSS = f"""
@@ -605,52 +640,6 @@ class Graph(flx.CanvasWidget):
                     ctx.stroke()
             print(f"Graph :: done")
 
-    @flx.action
-    def show_info(self, data):
-        print(f"Graph.show_info :: data")
-        # print(f"Graph.show_info :: data", JSON.stringify(data))
-
-        genome_name  = data["genome_name" ] # 370 merged 2.50
-        bin_width    = data["bin_width"   ] # 250000
-        metric       = data["metric"      ] # average_jaccard
-        order        = data["order"       ] # optimal_leaf_ordering
-        bin_num      = data["bin_num"     ] # 12
-        sample_num   = data["sample_num"  ] # 11
-        sample_names = data["sample_names"]
-
-        bin_snps     = data["bin_snps"    ]
-        sample_name  = data["sample_name" ]
-        distance_bin = data["distance_bin"]
-        distance_sam = data["distance_sam"]
-        newick       = data["newick"      ]
-
-        bin_start    = bin_width * (bin_num + 0)
-        bin_end      = bin_width * (bin_num + 1)
-
-        print(f"Graph.show_info :: data"    ,
-            "\n\tgenome_name ", genome_name ,
-            "\n\tbin_width   ", bin_width   ,
-            "\n\tmetric      ", metric      ,
-            "\n\torder       ", order       ,
-            "\n\tsample_num  ", sample_num  ,
-
-            "\n\tbin_snps    ", bin_snps    ,
-            "\n\tsample_name ", sample_name ,
-            "\n\tsample_names", sample_names, len(sample_names),
-            "\n\tdistance_bin", distance_bin, len(distance_bin),
-            "\n\tdistance_sam", distance_sam, len(distance_sam),
-
-            "\n\tbin_num     ", bin_num     ,
-            "\n\tbin_start   ", bin_start   ,
-            "\n\tbin_end     ", bin_end     ,
-            "\n\tnewick      ", newick      ,
-
-            # "\n\tsample_name" , sample_name ,
-            # "\n\tbin_snps"    , bin_snps    ,
-            # "\n\tdistance_bin", distance_bin,
-            # "\n\tdistance_sam", distance_sam
-        )
-
 
 
 class Forms(flx.Widget):
@@ -660,62 +649,125 @@ class Forms(flx.Widget):
             height: 33%;
         }
         .selector {
-            position:absolute;
+            position: absolute;
+            background-color: darkseagreen;
             top: 5px;
             left: 5px;
-            background-color: darkseagreen;
             width: 99%;
             height: 30px;
             z-index: 1000;
+        }
+        .cell_info {
+            position: fixed;
+            background-color: darkseagreen;
+            border-color: black;
+            border-width: thin;
+            border-style: solid;
+            top: 20px;
+            left: 20px;
+            width: 90%;
+            height: 90%;
+            z-index: 10001;
+        }
+
+        .h4 {
+            font-size: 18px;
+            font-weight: bold;
+            display: block;
         }
 
         .form_sel {
             background-color: lightgreen;
             border: 1px solid #000;
-            width: 15%;
             font-size: 12px;
+            width: 15%;
             height: 25px;
         }
 
-        .btn_download {
+        .btn_download_image {
             background-color: lightgreen;
             width: 10%;
             height: 26px;
+        }
+
+        .sel_tree_type {
+            background-color: lightgreen;
+            border-style: solid;
+            border-color: black;
+            border-width: thin;
+            height: 23px;
         }
 
         .info {
             font-size: small;
         }
 
-        .info_selection_sp{
+        .info_selection_sp {
             width: 15%;
             display: inline-block;
         }
-        .info_selection_he{
+        .info_selection_he {
             font-weight: bold;
         }
-        .info_selection_va{
+        .info_selection_va {
         }
 
-        .info_genome_sp{
+        .info_genome_sp {
             width: 32%;
             display: inline-block;
         }
-        .info_genome_he{
+        .info_genome_he {
             font-weight: bold;
         }
-        .info_genome_va{
+        .info_genome_va {
         }
 
-        .info_chromosome_sp{
+        .info_chromosome_sp {
             width: 32%;
             display: inline-block;
         }
-        .info_chromosome_he{
+        .info_chromosome_he {
             font-weight: bold;
         }
-        .info_chromosome_va{
+        .info_chromosome_va {
         }
+
+
+        .info_cell_sp, .btn_download_info {
+            width: 25%;
+            display: inline-block;
+        }
+        .info_cell_he {
+            font-weight: bold;
+        }
+        .info_cell_va {
+        }
+ 
+        .btn_cell_close {
+            background-color: lightgreen;
+            position: absolute;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            width: 30px;
+            height: 30px;
+            right: 5px;
+            top: 5px;
+        }
+
+        .btn_download_info {
+            background-color: lightgreen;
+        }
+
+    """ + f"""
+        #svg_div, #svg_tree {{
+            width:{TREE_WIDTH}px;
+            height:{TREE_HEIGHT}px;
+        }}
+        #svg_div {{
+            background-color:white;
+            border:1px solid rgb(228,228,228);
+        }}
     """
 
     genomes          = flx.ListProp(  [] , settable=True, doc="List of genomes")
@@ -734,17 +786,17 @@ class Forms(flx.Widget):
 
     genome_data      = flx.DictProp(  {} , settable=True, doc="Genome info")
     chromosome_data  = flx.DictProp(  {} , settable=True, doc="Chromosome info")
+    info             = flx.DictProp(  {} , settable=True, doc="Cell Info")
+
+    color            = flx.StringProp(color_maps[list(color_maps.keys())[0]][0], settable=True , doc="Color name")
+    colors_data      = flx.DictProp(color_maps, settable=False, doc="List of colors")
 
     _sel_genomes     = "Select genome"
     _sel_bin_widths  = "Select bin width"
     _sel_metrics     = "Select metric"
     _sel_chromosomes = "Select chromosome"
     _sel_samples     = "Select sample"
-
-    color            = flx.StringProp(color_maps[list(color_maps.keys())[0]][0], settable=True , doc="Color name")
-    colors_data      = flx.DictProp(color_maps, settable=False, doc="List of colors")
     _sel_colors      = "Select color"
-
 
     def _getElementById(self, eid):
         global window
@@ -780,6 +832,37 @@ class Forms(flx.Widget):
             link.setAttribute('href', img.replace("image/png", "image/octet-stream"))
             link.click()
 
+    def _close_info_cell(self, *ev):
+        if len(ev) > 0 and ev[0]["isTrusted"]:
+            self.set_info({})
+
+    def _download_info_cell(self, sample_name, bin_start, bin_end, key, extension, *ev):
+        print("_download_info_cell", sample_name, bin_start, bin_end, key, extension, JSON.stringify(ev))
+        if len(ev) > 0 and ev[0]["isTrusted"]:
+            if not key in self.info:
+                if key != "_ALL":
+                    return
+
+            if key == "_ALL":
+                val  = JSON.stringify(self.info)
+                key  = "ALL"
+            else:
+                val  = self.info[key]
+
+            data = Blob([val])
+            obj  = URL.createObjectURL(data)
+
+            link = self._getElementById('link')
+            link.setAttribute('download', 'ibrowser_'+self.genome+'_'+self.chromosome+'_'+self.bin_width+'_'+self.metric+'_'+self.sample+'_'+sample_name+'_'+bin_start+'_'+bin_end+'_'+key+'.'+extension)
+            link.setAttribute('href', obj)
+            link.click()
+
+            # https://stackoverflow.com/questions/4184944/javascript-download-data-to-file-from-content-within-the-page
+            # _cel("a", {"id": "link"}, "")
+            # "data:text/csv;base64," + btoa(csv)
+            # var data = new Blob([csv])
+            # a2.href = URL.createObjectURL(data)
+
     def _render_dom(self):
         print("Forms._render_dom")
         # Use this to determine the content. This method may return a
@@ -792,16 +875,16 @@ class Forms(flx.Widget):
         _cel            = flx.create_element
 
         els = []
-                    
+
+        def gen_getter_and_setter(eid, f):
+            return lambda x: _get_and_set(eid, f)
+
         def gen_opts(options, option, place_holder_name, place_holder_value, class_str, element_id, callback):
             # print("options", options, "option", option, "place_holder_name", place_holder_name, "place_holder_value", place_holder_value, "class_str", class_str, "element_id", element_id, "callback", callback)
             lopts  = [_cel('option', {"value": place_holder_value}, place_holder_name)]
             lopts += [_cel('option', {"value": s, "selected": "selected" if s == option else None}, s) for s in options]
             lel    =  _cel('select', {"class": class_str, "disabled": False if options else True, "id": element_id, "onchange": gen_getter_and_setter(element_id, callback)}, *lopts)
             return lel
-
-        def gen_getter_and_setter(eid, f):
-            return lambda x: _get_and_set(eid, f)
 
         self.sel_genomes_el     = gen_opts(self.genomes    , self.genome    , self._sel_genomes    , "-", "form_sel", "sel_genomes"    , self.set_genome    )
         self.sel_bin_widths_el  = gen_opts(self.bin_widths , self.bin_width , self._sel_bin_widths , "-", "form_sel", "sel_bin_widths" , self.set_bin_width )
@@ -832,9 +915,9 @@ class Forms(flx.Widget):
             self.sel_colors_el = _cel('select', {"id": "sel_colors", "class": "form_sel", "onchange": gen_getter_and_setter("sel_colors", self.set_color)}, *colors_opts)
             els += [self.sel_colors_el]
 
-        _download_image    = self._download_image
-        btn_download_image = _cel('button', {"class": "btn btn_download", "onclick": _download_image}, "Download", _cel("a", {"id": "link"}, ""))
-        els += [btn_download_image]
+        _download_image     = self._download_image
+        btn_download_image  = _cel('button', {"class": "btn btn_download_image", "onclick": _download_image}, "Download", _cel("a", {"id": "link"}, ""))
+        els                += [btn_download_image]
         # for k,v in [
         #         ["Genome"    , self.genome    ],
         #         ['Bin Width' , self.bin_width ],
@@ -845,17 +928,25 @@ class Forms(flx.Widget):
         #     ]:
         #     els.append(_cel('span', {'class': 'info_selection_sp'}, _cel('span', {'class': 'info_selection_he'}, k +':'), _cel('span', {'class': 'info_selection_va'}, v )))
 
+        hidden_genome_data  = []
+        hidden_chrom_data   = ["chrom_tree"]
+        els                += [_cel('span', {"class": "h4"}, "Genome")]
+
         if  self.genome_data:
             for k,v in self.genome_data.items():
+                if k in hidden_genome_data:
+                    continue
                 els.append(
                     _cel('span', {'class': 'info_genome_sp info'},
                         _cel('span', {'class': 'info_genome_he'}, " ".join(k.split("_")).title() +':'),
                         _cel('span', {'class': 'info_genome_va'}, str(v) )))
 
-        els += [_cel('br')]
+        els += [_cel('span', {"class": "h4"}, "Chromosome")]
 
         if self.chromosome_data:
             for k,v in self.chromosome_data.items():
+                if k in hidden_chrom_data:
+                    continue
                 els.append(
                     _cel('span', {'class': 'info_chromosome_sp info'},
                         _cel('span', {'class': 'info_chromosome_he'}, " ".join(k.split("_")).title() +':'),
@@ -863,9 +954,185 @@ class Forms(flx.Widget):
 
         els += [_cel('br')]
 
+        self._render_info(_cel, els)
+
         return els
 
+    def _render_info(self, _cel, els):
+        print(f"Forms._render_info")
+        # print(f"Forms._render_info", JSON.stringify(self.info))
 
+        if (
+            self.info is None or 
+            len(self.info) == 0 or 
+            (not "genome_name" in self.info)):
+            return
+
+        if self.info is None:
+            print(f"Forms._render_info :: data is None")
+            return
+
+        if len(self.info) == 0:
+            print(f"Forms._render_info :: no data")
+            return
+
+        if not "genome_name" in self.info:
+            print(f"Forms._render_info :: empty data")
+            return
+
+        iels         = []
+
+        genome_name  = self.info["genome_name" ] # 370 merged 2.50
+        metric       = self.info["metric"      ] # average_jaccard
+        order        = self.info["order"       ] # optimal_leaf_ordering
+
+        sample_num   = self.info["sample_num"  ] # 11
+        sample_name  = self.info["sample_name" ]
+        sample_names = self.info["sample_names"]
+
+        bin_snps     = self.info["bin_snps"    ]
+        distance_bin = self.info["distance_bin"]
+        distance_sam = self.info["distance_sam"]
+
+        bin_width    = self.info["bin_width"   ] # 250000
+        bin_num      = self.info["bin_num"     ] # 12
+        bin_start    = self.info["bin_start"   ] # 250000
+        bin_end      = self.info["bin_end"     ] # 250000
+
+        newick       = self.info["newick"      ]
+
+        if False:
+            print(f"Forms._render_info :: data" ,
+                "\n\tgenome_name ", genome_name ,
+                "\n\tmetric      ", metric      ,
+                "\n\torder       ", order       ,
+
+                "\n\tsample_num  ", sample_num  ,
+                "\n\tsample_name ", sample_name ,
+                "\n\tsample_names", sample_names, len(sample_names),
+
+                "\n\tbin_snps    ", bin_snps    ,
+                "\n\tdistance_bin", distance_bin, len(distance_bin),
+                "\n\tdistance_sam", distance_sam, len(distance_sam),
+
+                "\n\tbin_width   ", bin_width   ,
+                "\n\tbin_num     ", bin_num     ,
+                "\n\tbin_start   ", bin_start   ,
+                "\n\tbin_end     ", bin_end     ,
+
+                "\n\tnewick      ", newick      ,
+
+                # "\n\tsample_name" , sample_name ,
+                # "\n\tbin_snps"    , bin_snps    ,
+                # "\n\tdistance_bin", distance_bin,
+                # "\n\tdistance_sam", distance_sam
+            )
+
+        iels.append(_cel('span', {"class": "h4"}, "Metadata"))
+        hidden_info_data = ["newick", "sample_names", "distance_bin", "distance_sam"]
+        for k,v in sorted(self.info.items()):
+            if k in hidden_info_data:
+                continue
+            iels.append(
+                _cel('span', {'class': 'info_cell_sp info'},
+                    _cel('span', {'class': 'info_cell_he'}, " ".join(k.split("_")).title() +':'),
+                    _cel('span', {'class': 'info_cell_va'}, str(v) )))
+
+        iels.append(_cel('br'))
+        iels.append(_cel('span', {"class": "h4"}, "Downloads"))
+
+        _download_info_cell_DB = lambda x: self._download_info_cell(sample_name, bin_start, bin_end, "distance_bin", "csv", x)
+        iels.append(_cel('button', {"class": "btn btn_download_info", "onclick": _download_info_cell_DB}, "Distance Bin"))
+
+        _download_info_cell_DS = lambda x: self._download_info_cell(sample_name, bin_start, bin_end, "distance_sam", "csv", x)
+        iels.append(_cel('button', {"class": "btn btn_download_info", "onclick": _download_info_cell_DS}, "Distance Sam"))
+
+        _download_info_cell_NW = lambda x: self._download_info_cell(sample_name, bin_start, bin_end, "newick"      , "newick", x)
+        iels.append(_cel('button', {"class": "btn btn_download_info", "onclick": _download_info_cell_NW}, "Newick Tree"))
+
+        _download_info_cell_AL = lambda x: self._download_info_cell(sample_name, bin_start, bin_end, "_ALL"      , "json", x)
+        iels.append(_cel('button', {"class": "btn btn_download_info", "onclick": _download_info_cell_AL}, "All"))
+
+        _close_info_cell = self._close_info_cell
+        iels.append(_cel('button', {'class': 'btn btn_cell_close', "onclick": _close_info_cell}, "X"))
+
+        tree_opts = []
+        tree_opt  = None
+        for k, v, s in [
+                # ["cladogram"         , "Cladogram"            , False],
+                # ["rectanglecladogram", "Rectangular cladogram", False],
+                ["phylogram"         , "Phylogram"            , True ],
+                ["circle"            , "Circle tree"          , False],
+                ["circlephylogram"   , "Circle phylogram"     , False]
+        ]:
+            if s:
+                tree_opt = k
+            tree_opts.append(_cel('option', {'value': k, 'selected': 'selected' if s else None}, v))
+
+        _get_and_set    = self._get_and_set
+        _tree_id        = "svg_tree"
+        
+        def _show_plot(drawing_type):
+            print("_show_plot", drawing_type)
+            showtree(drawing_type, _tree_id, newick, TREE_WIDTH, TREE_HEIGHT)
+
+        def gen_getter_and_setter(eid, f):
+            return lambda x: _get_and_set(eid, f)
+
+        iels.append(_cel('span'  , {"class": "h4"}, "Tree"))
+        iels.append(_cel('select', {"class": "sel sel_tree_type", "id": "tree_sel", "onchange": gen_getter_and_setter("tree_sel", _show_plot)}, *tree_opts))
+        iels.append(_cel('p'     , {'id': 'message'}, ''))
+        iels.append(_cel('br'))
+
+        iels.append(_cel('div'   , {'id': 'svg_div', 'class': 'svg_div'}))
+
+        # iels.append(_cel('div'   , {'id': 'svg_div', 'class': 'svg_div'},
+        #     _cel('svg'   , {'id': _tree_id, 'xmlns': 'http://www.w3.org/2000/svg', 'version': '1.1', 'height': TREE_HEIGHT, 'width': TREE_WIDTH},
+        #         _cel('g', {'id': 'viewport'})
+        #     )
+        # ))
+
+        def _show_first_plot():
+            print(f"showing first plot {tree_opt}")
+            global window
+            svg = window.document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+            svg.setAttribute("id"     , _tree_id)
+            svg.setAttribute("version", "1.1")
+            svg.setAttribute('height' , TREE_HEIGHT)
+            svg.setAttribute('width'  , TREE_WIDTH)
+            div = window.document.getElementById('svg_div')
+            div.append(svg)
+            _show_plot(tree_opt)
+
+        window.setTimeout(_show_first_plot, 1500)
+
+        """
+            <select id="style">
+                <option value="cladogram">Cladogram</option>
+                <option value="rectanglecladogram">Rectangular cladogram</option>
+                <option value="phylogram">Phylogram</option>
+                <option value="circle">Circle tree</option>
+                <option value="circlephylogram">Circle phylogram</option>
+            </select>
+            <button onclick="showtree('newick')">Show</button>
+            <p><span id="message"></span></p>
+            <div style="width:500px;height:500px;background-color:white;border:1px solid rgb(228,228,228);">
+                <svg id="svg" xmlns="http://www.w3.org/2000/svg" version="1.1" height="500" width="500">
+                    <g id="viewport">
+                    </g>
+                </svg>
+            </div>
+        """
+        # showtree(drawing_type, dst_id, newick)
+
+        info_div = _cel('div', {"id": "info", "class": "cell_info"}, iels) # the default is <div>
+        els.append(info_div)
+
+    @flx.action
+    def show_info(self, data):
+        print(f"Forms.show_info")
+        # print(f"Forms.show_info :: data", JSON.stringify(data))
+        self.set_info(data)
 
     @flx.action
     def reset_genomes(self):
@@ -1511,9 +1778,12 @@ class ChromosomeController(flx.PyComponent):
         # rootnode, nodelist = hierarchy.to_tree(Z, rd=True)
 
 
-        self.root.graph.show_info({
+        self.root.forms.show_info({
             "genome_name" : self.genome_name,
             "bin_width"   : self.bin_width,
+            "bin_start"   : self.bin_width * (bin_num + 0),
+            "bin_end"     : self.bin_width * (bin_num + 1),
+
             "metric"      : self.metric,
 
             "bin_snps"    : bin_snps,
